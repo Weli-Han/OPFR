@@ -98,7 +98,8 @@ Escalation ladder: haiku high, haiku xhigh, sonnet medium, sonnet high, sonnet x
 
 - Node 18+ and git.
 - The Claude Code CLI, logged in for headless use. Run `claude` and then `/login` once, or `claude setup-token`.
-  The dispatcher finds `claude` on PATH or in the desktop app folder. `OPFR_CLAUDE` overrides the path.
+  The dispatcher finds `claude` on PATH or in the desktop app folder (including the MSIX path
+  `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\claude-code`). `OPFR_CLAUDE` overrides the path.
 - Optional:
   - `headroom`;
   - `typescript-language-server` and `pyright` for LSP;

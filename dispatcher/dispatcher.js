@@ -84,8 +84,11 @@ function findClaude() {
     const p = path.join(d, n); if (d && fs.existsSync(p)) return p;
   }
   const cands = [path.join(os.homedir(), '.local', 'bin', names[0])];
-  const base = path.join(process.env.APPDATA || '', 'Claude', 'claude-code');
-  try {
+  // The MSIX desktop app keeps its CLI under LocalAppData\Packages; only processes inside the app see it under AppData.
+  const bases = [path.join(process.env.APPDATA || '', 'Claude', 'claude-code')];
+  const pk = path.join(process.env.LOCALAPPDATA || '', 'Packages');
+  try { for (const d of fs.readdirSync(pk)) if (/^Claude_/.test(d)) bases.push(path.join(pk, d, 'LocalCache', 'Roaming', 'Claude', 'claude-code')); } catch {}
+  for (const base of bases) try {
     for (const v of fs.readdirSync(base)) for (const h of fs.readdirSync(path.join(base, v))) cands.push(path.join(base, v, h, 'claude.exe'));
   } catch {}
   return cands.filter(p => fs.existsSync(p)).sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs)[0] || null;
