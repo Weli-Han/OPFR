@@ -1,0 +1,23 @@
+{
+  "name": "opfr",
+  "version": "0.1.0-alpha",
+  "description": "One Prompt, Full Result: interview once, then autonomous parallel build, verify, fix, and an honest report.",
+  "author": { "name": "velih" },
+  "license": "MIT",
+  "keywords": ["autonomous", "orchestration", "parallel", "conductor"],
+  "lspServers": {
+    "typescript": {
+      "command": "typescript-language-server",
+      "args": ["--stdio"],
+      "extensionToLanguage": {
+        ".ts": "typescript", ".tsx": "typescriptreact", ".js": "javascript", ".jsx": "javascriptreact",
+        ".mts": "typescript", ".cts": "typescript", ".mjs": "javascript", ".cjs": "javascript"
+      }
+    },
+    "pyright": {
+      "command": "pyright-langserver",
+      "args": ["--stdio"],
+      "extensionToLanguage": { ".py": "python", ".pyi": "python" }
+    }
+  }
+}

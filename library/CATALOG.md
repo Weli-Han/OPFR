@@ -1,0 +1,144 @@
+# OPFR library catalog
+
+Read a skill only when the task needs it: library/skills/<name>/SKILL.md (agents: library/agents/<name>.md).
+
+## Skills
+- accessibility: Design, implement, and audit accessible UI to WCAG 2.2 Level AA across Web, iOS, and Android — semantic ARIA r
+- agent-development: This skill should be used when the user asks to "create an agent", "add an agent", "write a subagent", "agent 
+- ai-regression-testing: Regression testing strategies for AI-assisted development. Sandbox-mode API testing without database dependenc
+- api-design: REST API design patterns including resource naming, status codes, pagination, filtering, error responses, vers
+- architecture-decision-records: Capture architectural decisions as numbered ADR markdown files in docs/adr/ with context, alternatives conside
+- article-writing: Write articles, guides, blog posts, tutorials, newsletter issues, and other long-form content in a distinctive
+- autonomous-loops: Patterns and architectures for autonomous Claude Code loops — from simple sequential pipelines to RFC-driven m
+- backend-patterns: Backend architecture patterns, API design, database optimization, and server-side best practices for Node.js, 
+- benchmark-methodology: Score a scoped competitor set into comparable profile cards: nine weighted dimensions (positioning, voice, vis
+- blueprint: Turn a one-line objective into a step-by-step construction plan for multi-session, multi-agent engineering pro
+- brainstorming: You MUST use this before any creative work - creating features, building components, adding functionality, mod
+- browser-qa: Run automated post-deploy UI verification with a browser automation MCP (claude-in-chrome, Playwright, or Pupp
+- build-mcp-server: This skill should be used when the user asks to "build an MCP server", "create an MCP", "make an MCP integrati
+- cavecrew: When to delegate to `cavecrew-investigator` (locate code), `cavecrew-builder` (1-2 file edit) or `cavecrew-rev
+- caveman: Ultra-compressed communication mode that cuts output tokens while keeping technical accuracy. Levels: lite, fu
+- caveman-compress: Compress a memory file such as CLAUDE.md or a todo list into caveman format to save input tokens, keeping a re
+- change-impact: Perform evidence-backed impact analysis before changing code, data, interfaces, or governance documents, then 
+- claude-md-improver: Audit and improve CLAUDE.md files in repositories. Use when user asks to check, audit, update, improve, or fix
+- codebase-onboarding: Analyze an unfamiliar codebase and generate a structured onboarding guide with architecture map, key entry poi
+- coding-standards: Baseline cross-project coding conventions for naming, readability, immutability, and code-quality review. Use 
+- command-development: This skill should be used when the user asks to "create a slash command", "add a command", "write a custom com
+- context-budget: Routes live context checks to the native Codex or Claude Code meter without scanning files, and performs a bou
+- contract-first: Coordinate frontend/backend or service-to-service work through one authoritative machine-checkable contract (O
+- cost-aware-llm-pipeline: Cost optimization patterns for LLM API usage — model routing by task complexity, budget tracking, retry logic,
+- dashboard-builder: Build monitoring dashboards that answer real operator questions for Grafana, SigNoz, and similar platforms. Us
+- data-scraper-agent: Build a fully automated AI-powered data collection agent for any public source — job boards, prices, news, Git
+- database-migrations: Safe, reversible database migration patterns: forward-only production changes, expand-contract zero-downtime r
+- deep-research: Produce cited research reports from multiple web sources using firecrawl and exa MCP tools — plan sub-question
+- delivery-gate: Stop hook that blocks Claude from finishing until quality checks pass. Detects rationalization patterns (surfa
+- deployment-patterns: Deployment workflows, CI/CD pipeline patterns, Docker containerization, health checks, rollback strategies, an
+- design-system: Generate a design system from an existing codebase or audit one for visual consistency: extract tokens (colors
+- dispatching-parallel-agents: Use when facing 2+ independent tasks that can be worked on without shared state or sequential dependencies
+- docker-patterns: Docker and Docker Compose patterns for local development, hardened CLI installer harnesses, container security
+- documentation-lookup: Use up-to-date library and framework docs via Context7 MCP instead of training data. Activates for setup quest
+- e2e-testing: Playwright E2E testing patterns, Page Object Model, configuration, CI/CD integration, artifact management, and
+- error-handling: Patterns for robust error handling across TypeScript, Python, and Go. Covers typed errors, error boundaries, r
+- eval-harness: Eval-driven development (EDD) framework for AI coding sessions — define capability and regression evals before
+- executing-plans: Use when executing an implementation plan in the current session as the implementer yourself — your human part
+- fastapi-patterns: FastAPI best practices covering project structure, Pydantic v2 schemas, dependency injection, async handlers, 
+- finishing-a-development-branch: Use when implementation is complete, all tests pass, and you need to decide how to integrate the work
+- frontend-design: Guidance for distinctive, intentional visual design when building new UI or reshaping an existing one. Helps w
+- frontend-patterns: Frontend development patterns for React, Next.js, state management, performance optimization, and UI best prac
+- git-workflow: Git workflow patterns including branching strategies, commit conventions, keeping history clean and readable, 
+- golang-patterns: Idiomatic Go patterns, best practices, and conventions for building robust, efficient, and maintainable Go app
+- golang-testing: Go testing patterns including table-driven tests, subtests, benchmarks, fuzzing, and test coverage. Follows TD
+- hook-development: This skill should be used when the user asks to "create a hook", "add a PreToolUse/PostToolUse/Stop hook", "va
+- investigate-first: Diagnose ambiguous failures before editing. Use for unknown causes, intermittent behavior, performance regress
+- iterative-retrieval: Pattern for progressively refining context retrieval to solve the subagent context problem. Use when a subagen
+- kubernetes-patterns: Kubernetes workload patterns, resource management, RBAC, probes, autoscaling, ConfigMap/Secret handling, and k
+- lean-build: Build feature work with high overbuilding risk. Use for new behavior, product slices, or integrations where re
+- mcp-integration: This skill should be used when the user asks to "add MCP server", "integrate MCP", "configure MCP in plugin", 
+- mcp-server-patterns: Build MCP servers with Node/TypeScript SDK — tools, resources, prompts, Zod validation, stdio vs Streamable HT
+- mle-workflow: Production machine-learning engineering workflow for data contracts, reproducible training, model evaluation, 
+- native-core.md: caveman native core rules (file library/skills/native-core.md)
+- nextjs-turbopack: Next.js 16+ and Turbopack guidance — incremental Rust bundling, file-system caching, faster dev startup and HM
+- parallel-execution-optimizer: Speed up a task by turning it into a dependency graph of parallel lanes with a lane matrix, batched reads and 
+- plugin-settings: This skill should be used when the user asks about "plugin settings", "store plugin configuration", "user-conf
+- plugin-structure: This skill should be used when the user asks to "create a plugin", "scaffold a plugin", "understand plugin str
+- postgres-patterns: PostgreSQL database patterns for query optimization, schema design, indexing, and security. Based on Supabase 
+- prisma-patterns: Prisma ORM patterns for TypeScript backends — schema design, query optimization, transactions, pagination, and
+- production-audit: Local-evidence production readiness audit for shipped apps, pre-launch reviews, post-merge checks, and "what b
+- prompt-caching-strategy: Optimize LLM prompt caching hit rate to reduce API costs and improve latency. Analyzes prompt structure, ident
+- python-patterns: Pythonic idioms, PEP 8 standards, type hints, and best practices for building robust, efficient, and maintaina
+- python-testing: Python testing strategies using pytest, TDD methodology, fixtures, mocking, parametrization, and coverage requ
+- pytorch-patterns: PyTorch deep learning patterns and best practices for building robust, efficient, and reproducible training pi
+- react-patterns: React 18/19 patterns including hooks discipline, server/client component boundaries, Suspense + error boundari
+- react-performance: React and Next.js performance optimization patterns adapted from Vercel Engineering's React Best Practices (ht
+- react-testing: React component testing with React Testing Library, Vitest/Jest, MSW for network mocking, accessibility assert
+- receiving-code-review: Use when receiving code review feedback, before implementing suggestions, especially if feedback seems unclear
+- redis-patterns: Redis data structure patterns, caching strategies, distributed locks, rate limiting, pub/sub, and connection m
+- requesting-code-review: Use when completing tasks, implementing major features, or before merging to verify work meets requirements
+- research-ops: Evidence-first current-state research workflow for ECC. Use when the user wants fresh facts, comparisons, enri
+- rust-patterns: Idiomatic Rust patterns, ownership, error handling, traits, concurrency, and best practices for building safe,
+- rust-testing: Rust testing patterns including unit tests, integration tests, async testing, property-based testing, mocking,
+- safe-refactor: Restructure code while preserving behavior. Use for extraction, consolidation, ownership moves, or cleanup whe
+- safety-guard: Guard against destructive operations with three modes: Careful intercepts dangerous commands (rm -rf, git push
+- scientific-thinking-literature-review: Systematic literature-review workflow for academic, biomedical, technical, and scientific topics, including se
+- search-first: Research-before-coding workflow: search npm/PyPI, MCP servers, skills, and GitHub for existing tools before wr
+- security-review: Use this skill when adding authentication, handling user input, working with secrets, creating API endpoints, 
+- security-scan: Scan your Claude Code configuration (.claude/ directory) for security vulnerabilities, misconfigurations, and 
+- skill-creator: Create new skills, modify and improve existing skills, and measure skill performance. Use when users want to c
+- skill-development: This skill should be used when the user wants to "create a skill", "add a skill to plugin", "write a new skill
+- strategic-compact: Suggests manual context compaction at logical intervals to preserve context through task phases rather than ar
+- subagent-driven-development: Use when executing implementation plans with independent tasks in the current session
+- surgical-patch: Fix bugs and small behavior changes at the narrowest responsible layer. Use when regression proof, preserved s
+- systematic-debugging: Use when encountering any bug, test failure, or unexpected behavior, before proposing fixes
+- tdd-workflow: Test-driven development workflow: write a failing test first, watch it fail, implement the smallest change to 
+- test-driven-development: Use when implementing any feature or bugfix, before writing implementation code
+- token-budget-advisor: Offer a choice of response depth (25%/50%/75%/100%) with token estimates before answering, then answer at that
+- using-git-worktrees: Use when starting feature work that needs isolation from current workspace or before executing implementation 
+- verification-before-completion: Use when about to claim work is complete, fixed, or passing, before committing or creating PRs - requires runn
+- verification-loop: Run a six-phase verification of a Claude Code session's work — build, type check, lint, tests with coverage, s
+- verify-and-stop: Prove existing work meets acceptance conditions without expanding scope. Use for validation-only tasks, comple
+- vite-patterns: Vite build tool patterns including config, plugins, HMR, env variables, proxy setup, SSR, library mode, depend
+- windows-desktop-e2e: E2E testing for Windows native desktop apps (WPF, WinForms, Win32/MFC, Qt) using pywinauto and Windows UI Auto
+- writing-plans: Use when you have a spec or requirements for a multi-step task, before touching code
+- writing-skills: Use when creating new skills, editing existing skills, or verifying skills work before deployment
+
+## Agents (role prompts)
+- a11y-architect: Accessibility Architect specializing in WCAG 2.2 compliance for Web and Native platforms. Use PROACTIVELY when
+- architect: Software architecture specialist for system design, scalability, and technical decision-making. Use PROACTIVEL
+- architecture-critic: Reviews proposed target architectures and transformed code against modern best practice. Adversarial — looks f
+- build-error-resolver: Build and TypeScript error resolution specialist. Use PROACTIVELY when build fails or type errors occur. Fixes
+- cavecrew-builder: Surgical 1-2 file edit. Typo fixes, single-function rewrites, mechanical renames, comment removal, format-pres
+- cavecrew-investigator: Read-only code locator. Returns file:line table for "where is X defined", "what calls Y", "list all uses of Z"
+- cavecrew-reviewer: Diff/branch/file reviewer. One line per finding, severity-tagged, no praise, no scope creep. Output format `pa
+- code-architect: Designs feature architectures by analyzing existing codebase patterns and conventions, then providing comprehe
+- code-explorer: Deeply analyzes existing codebase features by tracing execution paths, mapping architecture layers, understand
+- code-reviewer: Reviews code for bugs, logic errors, security vulnerabilities, code quality issues, and adherence to project c
+- code-simplifier: Simplifies and refines code for clarity, consistency, and maintainability while preserving all functionality. 
+- comment-analyzer: Use this agent when you need to analyze code comments for accuracy, completeness, and long-term maintainabilit
+- database-reviewer: PostgreSQL database specialist for query optimization, schema design, security, and performance. Use PROACTIVE
+- doc-updater: Documentation and codemap specialist. Use PROACTIVELY for updating codemaps and documentation. Generates docs/
+- docs-lookup: When the user asks how to use a library, framework, or API or needs up-to-date code examples, use Context7 MCP
+- e2e-runner: End-to-end testing specialist using Vercel Agent Browser (preferred) with Playwright fallback. Use PROACTIVELY
+- go-build-resolver: Go build, vet, and compilation error resolution specialist. Fixes build errors, go vet issues, and linter warn
+- go-reviewer: Expert Go code reviewer specializing in idiomatic Go, concurrency patterns, error handling, and performance. U
+- legacy-analyst: Deep-reads legacy codebases (COBOL, Java, .NET, Node, anything) to build structural and behavioral understandi
+- mle-reviewer: Production machine-learning engineering reviewer for data contracts, feature pipelines, training reproducibili
+- network-troubleshooter: Diagnoses network connectivity, routing, DNS, interface, and policy symptoms with a read-only OSI-layer workfl
+- performance-optimizer: Performance analysis and optimization specialist. Use PROACTIVELY for identifying bottlenecks, optimizing slow
+- planner: Expert planning specialist for complex features and refactoring. Use PROACTIVELY when users request feature im
+- pr-test-analyzer: Use this agent when you need to review a pull request for test coverage quality and completeness. This agent s
+- python-reviewer: Expert Python code reviewer specializing in PEP 8 compliance, Pythonic idioms, type hints, security, and perfo
+- pytorch-build-resolver: PyTorch runtime, CUDA, and training error resolution specialist. Fixes tensor shape mismatches, device errors,
+- rag-pipeline-reviewer: Reviews RAG (Retrieval-Augmented Generation) pipelines for retrieval quality, chunking strategy, embedding cho
+- react-build-resolver: Diagnose and fix React build failures across Vite, webpack, Next.js, CRA, Parcel, esbuild, and Bun. Handles JS
+- react-reviewer: Expert React/JSX code reviewer specializing in hook correctness, render performance, server/client component b
+- refactor-cleaner: Dead code cleanup and consolidation specialist. Use PROACTIVELY for removing unused code, duplicates, and refa
+- rust-build-resolver: Rust build, compilation, and dependency error resolution specialist. Fixes cargo build errors, borrow checker 
+- rust-reviewer: Expert Rust code reviewer specializing in ownership, lifetimes, error handling, unsafe usage, and idiomatic pa
+- security-auditor: Adversarial security reviewer — OWASP Top 10, CWE, dependency CVEs, secrets, injection. Use for security debt 
+- security-reviewer: Security vulnerability detection and remediation specialist. Use PROACTIVELY after writing code that handles u
+- silent-failure-hunter: Use this agent when reviewing code changes in a pull request to identify silent failures, inadequate error han
+- spec-miner: Extracts behavioral specs from existing codebases for OpenSpec. Produces flat Requirement and Invariant blocks
+- tdd-guide: Test-Driven Development specialist enforcing write-tests-first methodology. Use PROACTIVELY when writing new f
+- test-engineer: Writes characterization, contract, and equivalence tests that pin down legacy behavior so transformation can b
+- type-design-analyzer: Use this agent when you need expert analysis of type design in your codebase. Specifically use it (1) when int
+- typescript-reviewer: Expert TypeScript/JavaScript code reviewer specializing in type safety, async correctness, Node/web security, 

@@ -1,0 +1,33 @@
+OPFR (One Prompt, Full Result)
+Copyright (c) 2026 velih. Licensed under the MIT License (see LICENSE).
+
+This plugin bundles third-party material. Each item keeps its original license;
+full texts are in licenses/. The per-file source of every library entry is listed
+in library/SOURCES.tsv.
+
+1. caveman (MIT) - licenses/caveman-MIT.txt
+   12 library entries (skills and agents) under library/.
+
+2. superpowers by Jesse Vincent / obra (MIT) - licenses/superpowers-MIT.txt
+   13 library entries under library/.
+
+3. everything-claude-code (ECC) by affaan-m (MIT) - licenses/ecc-MIT.txt
+   89 library entries under library/. Taken only from the original repository.
+
+4. Anthropic claude-plugins-official (Apache-2.0) - licenses/claude-plugins-official-Apache-2.0.txt
+   23 library entries under library/.
+   hooks/security-patterns.js is a modified JavaScript port of the pattern list
+   from the security-guidance plugin (hooks/patterns.py). Changes: rewritten in
+   JavaScript, reminders shortened, LLM review step removed, extra rules added
+   (sql_concat, hardcoded_secret, tls_off, aes_ecb, yaml_load).
+
+Modifications: library entries are copied as published. The catalog
+(library/CATALOG.md) is generated from their descriptions. Where an entry was
+edited, the edit is noted at the top of that file.
+
+Not included: the proprietary claude-security plugin, and any file whose license
+did not allow redistribution.
+
+External tools used at run time, not bundled: headroom (CLI, installed
+separately), @playwright/mcp and Context7 MCP (started on demand per task),
+typescript-language-server and pyright (LSP, installed separately).

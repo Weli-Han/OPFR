@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Conductor Office</title>
+<style>
+:root{--bg:#0e1117;--panel:#161a22;--panel2:#1c212b;--line:#272d39;--text:#e7eaf0;--muted:#8b93a5;--accent:#f5c451;--opus:#b39dfa;--sonnet:#6fb3ff;--haiku:#5fd38d;--bug:#ff6b6b;--ok:#5fd38d;--warn:#f5c451}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1800px;margin:0 auto;padding:12px 16px 24px}
+header{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+h1{font-size:18px;margin:0;letter-spacing:.4px}
+.badge{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 9px}
+.controls{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+button{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font:inherit;font-size:13px;cursor:pointer}
+button:hover{border-color:#3a4252}
+button.on{border-color:var(--accent);color:var(--accent)}
+.phases{display:flex;gap:6px;margin:12px 0 8px;flex-wrap:wrap}
+.ph{flex:1 1 0;min-width:88px;text-align:center;font-size:12px;padding:6px 4px;border-radius:8px;background:var(--panel);border:1px solid var(--line);color:var(--muted);transition:background .3s}
+.ph.done{color:var(--text);border-color:#2f6b47;background:#15251c}
+.ph.cur{color:#14161b;background:var(--accent);border-color:var(--accent);font-weight:600}
+.stats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-bottom:10px}
+.st{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px;min-width:0}
+.st b{display:block;font-size:18px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st span{font-size:12px;color:var(--muted)}
+.layout{display:grid;grid-template-columns:1fr;gap:12px}
+.stage{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px;min-width:0}
+canvas{display:block;width:100%;border-radius:6px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);padding:8px 4px 2px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+aside{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);gap:12px;min-width:0;align-items:start}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+.card h3{margin:0 0 8px;font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.6px}
+.name{font-size:16px;font-weight:600}
+.chip{display:inline-block;font-size:11px;padding:1px 7px;border-radius:999px;color:#14161b;font-weight:600;margin-left:6px;vertical-align:2px}
+.kv{display:grid;grid-template-columns:92px 1fr;gap:4px 8px;font-size:13px;margin-top:8px}
+.kv span:nth-child(odd){color:var(--muted)}
+.list{margin:8px 0 0;padding:0;list-style:none;font-size:13px}
+.list li{padding:5px 0;border-top:1px solid var(--line)}
+.list small{color:var(--muted)}
+#log{list-style:none;margin:0;padding:0;max-height:280px;overflow:auto;font-size:12.5px}
+#log li{padding:5px 0;border-top:1px solid var(--line);display:grid;grid-template-columns:70px 1fr;gap:6px}
+#log time{color:var(--muted);font-variant-numeric:tabular-nums}
+#log .phase{color:var(--accent);font-weight:600}
+#log .ok{color:var(--ok)}#log .bug{color:var(--bug)}#log .warn{color:var(--warn)}
+.hint{color:var(--muted);font-size:13px;margin:0}
+@media (max-width:1000px){aside{grid-template-columns:1fr}.stats{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:520px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.controls{margin-left:0}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Conductor Office</h1>
+    <span class="badge">v1 · демо-режим, события фейковые</span>
+    <div class="controls">
+      <button id="pause">Пауза</button>
+      <button data-speed="1" class="on">1x</button>
+      <button data-speed="2">2x</button>
+      <button data-speed="4">4x</button>
+      <button id="restart">Сначала</button>
+    </div>
+  </header>
+
+  <div class="phases" id="phases"></div>
+
+  <div class="stats">
+    <div class="st"><b id="s-created">0</b><span>агентов создано</span></div>
+    <div class="st"><b id="s-active">0</b><span>сейчас в офисе</span></div>
+    <div class="st"><b id="s-tasks">0 / 42</b><span>задач готово</span></div>
+    <div class="st"><b id="s-bugs">0 · 0 · 0</b><span>баги: открыто · испр. · нерешено</span></div>
+    <div class="st"><b id="s-tokens">0</b><span>токенов потрачено</span></div>
+    <div class="st"><b id="s-time">0ч 0м</b><span>прошло</span></div>
+  </div>
+
+  <div class="layout">
+    <section class="stage">
+      <canvas id="c"></canvas>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--opus)"></i>Opus</span>
+        <span><i class="dot" style="background:var(--sonnet)"></i>Sonnet</span>
+        <span><i class="dot" style="background:var(--haiku)"></i>Haiku</span>
+        <span><i class="dot" style="background:#f5c451"></i>звезда на плече = лид</span>
+        <span><i class="dot" style="background:#f5d76e"></i>документ</span>
+        <span><i class="dot" style="background:#ff6b6b"></i>баг</span>
+        <span><i class="dot" style="background:#f08cd8"></i>макет</span>
+        <span>тёмная комната = отдел сейчас не работает</span>
+      </div>
+    </section>
+    <aside>
+      <div class="card"><h3>Детали</h3><div id="detail"><p class="hint">Нажми на сотрудника или комнату.</p></div></div>
+      <div class="card"><h3>Лента событий</h3><ul id="log"></ul></div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(()=>{
+const W=720,R1=44,RH=170,CY=R1+RH+20,R2=R1+RH+40,H=R2+RH+32,AS=1.5,QS=2,SPEED=70,FPS=15,TOTAL_TASKS=42;
+// Live mode: office/server.js injects window.OPFR_LIVE and streams .opfr/events.jsonl over SSE.
+const LIVE=!!window.OPFR_LIVE;
+const LV={done:0,total:0,start:Date.now(),es:null,names:{}};
+const MODELS={opus:{n:'Opus 5.5',c:'#b39dfa',d:'#7d64d8'},sonnet:{n:'Sonnet 5.5',c:'#6fb3ff',d:'#3b7fd1'},haiku:{n:'Haiku 5.5',c:'#5fd38d',d:'#2f9d5b'}};
+const PHASES=['Вопросы','Research','ТЗ и план','Сборка','Тест + защита','Фикс','Ретест','Отчёт'];
+const SKINS=['#f1c27d','#e0ac69','#c68642','#8d5524','#ffdbac'];
+const HAIRS=['#2b1d14','#5a3825','#d6b370','#1a1a1a','#8a3b1e','#9aa0a8'];
+const CARRY={doc:'#f5d76e',bug:'#ff6b6b',design:'#f08cd8'};
+
+const ROOMS=[
+['library','Библиотека','Research: поиск, конкуренты, тренды',8,R1,100,'#5d4837','#57432f'],
+['design','Дизайн','Дизайн: UI, design system, макеты',112,R1,100,'#4b4060','#453a59'],
+['frontend','Фронтенд','Фронтенд: страницы и компоненты',216,R1,100,'#2e4a5c','#2a4455'],
+['backend','Бэкенд','Бэкенд: API, БД, авторизация, оплата',320,R1,100,'#2f4a47','#2b4441'],
+['server','Серверная','Сборка проекта и прогон тестов',424,R1,96,'#363b46','#323640'],
+['archive','Архив','Память: SPEC, PLAN, BUGS, DECISIONS',524,R1,96,'#4d4538','#474034'],
+['kitchen','Кухня','Ожидание: лимит подписки или очередь',624,R1,88,'#6a6056','#5e554c'],
+['reception','Ресепшн','Intake: вопросы пользователю',8,R2,120,'#5a4836','#534231'],
+['pm','Кабинет PM','Дирижёр: план, контроль, решения',132,R2,100,'#4d3838','#463333'],
+['meeting','Переговорка','Согласование решений между отделами',236,R2,120,'#3c4a38','#374433'],
+['qa','QA','Тесты, playwright, поиск багов',360,R2,112,'#36435a','#323e53'],
+['security','Безопасность','Аудит уязвимостей',476,R2,100,'#4a3848','#433342'],
+['docs','Документы','ТЗ, README, REPORT',580,R2,132,'#4a4838','#444233'],
+].map(([id,name,desc,x,y,w,f1,f2])=>({id,name,desc,x,y,w,h:RH,f1,f2,row:y===R1?1:2,door:x+(w>>1),seats:[],spots:[],mons:[],racks:[]}));
+const RM=Object.fromEntries(ROOMS.map(r=>[r.id,r]));
+
+// ---------- static background (drawn once) ----------
+let seed=7;const rnd=()=>((seed=(seed*16807)%2147483647)/2147483647);
+const bg=document.createElement('canvas');bg.width=W;bg.height=H;const b=bg.getContext('2d');
+const R=(c,x,y,w,h)=>{b.fillStyle=c;b.fillRect(Math.round(x),Math.round(y),w,h)};
+function checker(x,y,w,h,c1,c2,s=8){for(let yy=0;yy<h;yy+=s)for(let xx=0;xx<w;xx+=s)R(((xx+yy)/s)%2?c2:c1,x+xx,y+yy,Math.min(s,w-xx),Math.min(s,h-yy))}
+function plant(x,y){R('#2f7d3a',x-1,y,8,6);R('#3fa34d',x,y-2,6,5);R('#56c264',x+2,y-3,2,2);R('#a0522d',x,y+6,6,4);R('#7a3d20',x,y+9,6,1)}
+function shelf(x,y,w,h){R('#5c3d22',x,y,w,h);const cols=['#c0392b','#2980b9','#27ae60','#f39c12','#8e44ad','#16a085','#d35400','#ecf0f1'];for(let row=y+2;row<y+h-2;row+=8){R('#3e2914',x+1,row+6,w-2,1);for(let i=x+2;i<x+w-3;i+=3){const hh=3+Math.floor(rnd()*3);R(cols[Math.floor(rnd()*cols.length)],i,row+6-hh,2,hh)}}}
+function desk(r,dx,dy){
+  R('#3b4252',dx+7,dy+17,8,8);R('#2c3240',dx+6,dy+24,10,2);
+  R('#a0703f',dx,dy,22,7);R('#7a5230',dx,dy+7,22,3);R('#5c3d22',dx+1,dy+10,2,3);R('#5c3d22',dx+19,dy+10,2,3);
+  R('#151922',dx+6,dy-6,10,7);R('#151922',dx+10,dy+1,2,2);R('#d0d4dc',dx+7,dy+3,8,2);
+  const s={x:dx+11,y:dy+28,occ:null};r.seats.push(s);r.mons.push({x:dx+7,y:dy-5,w:8,h:5,seat:s});
+}
+function desks(r,cols,rows,y0,dy,pad=8){const sp=(r.w-2*pad)/cols;for(let j=0;j<rows;j++)for(let i=0;i<cols;i++)desk(r,Math.round(r.x+pad+i*sp+(sp-22)/2),r.y+y0+j*dy)}
+function rack(r,x,y){R('#2c313c',x-1,y-1,16,42);R('#1a1d24',x,y,14,40);for(let k=0;k<9;k++)R('#262b35',x+2,y+2+k*4,10,3);r.racks.push({x,y})}
+
+function drawBackground(){
+  seed=7;
+  R('#10141b',0,0,W,H);
+  R('#1d222c',4,6,712,34);for(let x=4;x<716;x+=6)R('#232935',x,6,1,34);
+  R('#2a2e36',0,H-26,W,26);for(let x=0;x<W;x+=24)R('#33373f',x,H-14,12,2);
+  R('#262b36',4,40,712,H-66);
+  checker(8,R1+RH+4,704,R2-R1-RH-8,'#3b3631','#37322d');R('#6a3434',8,CY-3,704,6);R('#7d4040',8,CY-3,704,1);
+  for(const r of ROOMS){
+    checker(r.x,r.y,r.w,r.h,r.f1,r.f2);R('rgba(0,0,0,0.25)',r.x,r.y,r.w,3);
+    if(r.row===1)R('#8a6a45',r.door-7,r.y+r.h,14,4);else R('#8a6a45',r.door-7,r.y-4,14,4);
+  }
+  // corridor deco
+  {const cy=R1+RH+6;plant(110,cy);plant(422,cy);plant(622,cy);R('#cfe8ff',520,cy,6,8);R('#7fb6e6',520,cy,6,3)}
+  // per-room furniture
+  const L=RM.library;shelf(L.x+4,L.y+4,92,20);desks(L,2,2,40,64);plant(L.x+88,L.y+150);
+  const D=RM.design;['#ff6b6b','#f5c451','#5fd38d','#6fb3ff','#b39dfa'].forEach((c,i)=>R(c,D.x+8+i*7,D.y+8,5,5));R('#5c3d22',D.x+82,D.y+6,12,14);R('#f5f0e6',D.x+83,D.y+7,10,9);R('#f08cd8',D.x+85,D.y+9,5,4);desks(D,2,2,40,64);plant(D.x+4,D.y+150);
+  const F=RM.frontend;R('#e8ecf2',F.x+8,F.y+6,26,12);R('#6fb3ff',F.x+10,F.y+8,10,2);R('#5fd38d',F.x+10,F.y+12,16,2);desks(F,2,2,40,64);plant(F.x+88,F.y+150);
+  const B=RM.backend;R('#e8ecf2',B.x+66,B.y+6,26,12);R('#b39dfa',B.x+68,B.y+8,8,2);R('#f5c451',B.x+68,B.y+12,18,2);desks(B,2,2,40,64);plant(B.x+4,B.y+150);
+  const S=RM.server;for(let i=0;i<4;i++){rack(S,S.x+8+i*21,S.y+12);rack(S,S.x+8+i*21,S.y+96)}
+  const A=RM.archive;for(let i=0;i<5;i++){R('#6b7280',A.x+5+i*18,A.y+6,14,24);for(let k=0;k<3;k++){R('#4b5563',A.x+6+i*18,A.y+8+k*7,12,1);R('#d1d5db',A.x+11+i*18,A.y+10+k*7,2,1)}}desk(A,A.x+37,A.y+84);R('#a0703f',A.x+8,A.y+140,10,8);R('#a0703f',A.x+74,A.y+138,12,9);
+  const K=RM.kitchen;R('#9aa3ad',K.x+4,K.y+18,62,10);R('#6b7480',K.x+4,K.y+28,62,2);R('#1f2329',K.x+10,K.y+8,9,10);R('#ff6b6b',K.x+16,K.y+10,1,1);R('#d8dde3',K.x+70,K.y+6,14,26);R('#aab2bc',K.x+70,K.y+16,14,1);R('#c9a36b',K.x+30,K.y+86,28,16);R('#9a7a4c',K.x+30,K.y+102,28,2);
+  K.seats.push({x:K.x+37,y:K.y+86,occ:null},{x:K.x+51,y:K.y+86,occ:null},{x:K.x+22,y:K.y+106,occ:null},{x:K.x+66,y:K.y+106,occ:null},{x:K.x+44,y:K.y+128,occ:null});
+  const Re=RM.reception;R('#7a5230',Re.x+36,Re.y+62,52,10);R('#c9a36b',Re.x+36,Re.y+60,52,4);R('#151922',Re.x+72,Re.y+54,9,6);
+  Re.seats.push({x:Re.x+56,y:Re.y+58,occ:null});Re.mons.push({x:Re.x+73,y:Re.y+55,w:7,h:4,seat:Re.seats[0]});
+  R('#7c3f58',Re.x+8,Re.y+132,28,12);R('#9b5373',Re.x+8,Re.y+130,28,4);plant(Re.x+106,Re.y+140);R('#8a6a45',24,R2+RH,18,4);R('#4a3a2a',22,R2+RH+4,22,2);
+  Re.spots.push({x:Re.x+48,y:Re.y+108,occ:null},{x:Re.x+78,y:Re.y+108,occ:null});
+  const P=RM.pm;R('#f5f6f8',P.x+8,P.y+6,40,18);R('#9aa0a8',P.x+8,P.y+24,40,1);P.board={x:P.x+10,y:P.y+9};
+  R('#7a5230',P.x+28,P.y+68,44,10);R('#b8864d',P.x+28,P.y+66,44,4);R('#151922',P.x+62,P.y+60,9,6);
+  P.seats.push({x:P.x+44,y:P.y+64,occ:null});P.mons.push({x:P.x+63,y:P.y+61,w:7,h:4,seat:P.seats[0]});
+  shelf(P.x+82,P.y+34,14,48);plant(P.x+6,P.y+150);P.spots.push({x:P.x+36,y:P.y+116,occ:null},{x:P.x+62,y:P.y+116,occ:null});
+  const M=RM.meeting;R('#151922',M.x+84,M.y+5,28,14);R('#2a6f86',M.x+86,M.y+7,24,10);R('#7a5230',M.x+18,M.y+74,84,20);R('#a0703f',M.x+18,M.y+72,84,4);
+  [30,60,90].forEach(dx=>M.seats.push({x:M.x+dx,y:M.y+74,occ:null}));[30,60,90].forEach(dx=>M.seats.push({x:M.x+dx,y:M.y+122,occ:null}));plant(M.x+4,M.y+150);
+  const Q=RM.qa;desks(Q,3,2,40,64,6);
+  const Se=RM.security;R('#2a2f3a',Se.x+8,Se.y+6,14,16);R('#6fb3ff',Se.x+11,Se.y+8,8,10);R('#2a2f3a',Se.x+14,Se.y+10,2,5);desks(Se,2,2,40,64);
+  const Do=RM.docs;shelf(Do.x+104,Do.y+6,24,24);desks(Do,3,2,40,64,6);
+  for(const r of ROOMS){const y=r.row===1?r.y+r.h-18:r.y+r.h-12;r.spots.push({x:r.x+Math.round(r.w*0.3),y,occ:null},{x:r.x+Math.round(r.w*0.7),y,occ:null})}
+}
+drawBackground();
+
+// ---------- simulation ----------
+let agents=[],simT=0,speed=1,paused=false,phaseIdx=-1,script=[],si=0,serverBusy=false,frameN=0,sel=null,hover=null;
+let stats={created:0,bugsOpen:0,bugsFixed:0,unres:0,tokens:0};
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const A=id=>agents.find(a=>a.id===id&&!a.leaving);
+const dIn=r=>({x:r.door,y:r.row===1?r.y+r.h-6:r.y+8});
+const dOut=r=>({x:r.door,y:CY});
+function mk(o){return Object.assign({path:[],alpha:0,fade:1,anim:Math.random()*10,task:null,icon:null,carry:null,leaving:false,born:simT,hair:pick(HAIRS),skin:pick(SKINS),seat:null,parent:'—'},o)}
+function seatPos(r,a,pref){
+  let s=null;
+  if(pref!=null&&r.seats[pref]&&!r.seats[pref].occ)s=r.seats[pref];
+  if(!s)s=r.seats.find(x=>!x.occ)||r.spots.find(x=>!x.occ);
+  if(!s)s={x:r.x+20+Math.random()*(r.w-40),y:r.y+56+Math.random()*40,occ:null};
+  s.occ=a;a.seat=s;return s;
+}
+function free(a){if(a.seat){a.seat.occ=null;a.seat=null}}
+function place(o){const a=mk(o);const s=seatPos(RM[a.room],a,o.seat);a.x=s.x;a.y=s.y;a.alpha=1;agents.push(a);stats.created++;return a}
+function spawn(o){const a=mk(o);const r=RM[a.room];const s=seatPos(r,a,o.seat);const p=dOut(r);a.x=p.x;a.y=p.y;a.path=[dIn(r),{x:s.x,y:s.y}];agents.push(a);stats.created++;log(`+ ${a.name} (${MODELS[a.model].n}) → ${r.name}`);return a}
+function go(id,room,o={}){
+  const a=A(id);if(!a)return;const from=RM[a.room],to=RM[room];free(a);const s=seatPos(to,a,o.seat);
+  a.path=from===to?[{x:s.x,y:s.y}]:[dIn(from),dOut(from),dOut(to),dIn(to),{x:s.x,y:s.y}];
+  a.room=room;if('task'in o)a.task=o.task;if('icon'in o)a.icon=o.icon;a.carry=o.carry||null;
+}
+function leave(id,msg){const a=A(id);if(!a)return;const r=RM[a.room];free(a);a.leaving=true;a.icon=null;a.task='Ушёл';a.path=[dIn(r),dOut(r)];log(msg?msg:`− ${a.name} закончил и ушёл`,msg&&msg.startsWith('✓')?'ok':'')}
+function task(id,text,icon){const a=A(id);if(!a)return;a.task=text;if(icon!==undefined)a.icon=icon}
+function bug(text){stats.bugsOpen++;log('🐞 '+text,'bug')}
+function fix(id){stats.bugsOpen--;stats.bugsFixed++;log(`✓ ${id} исправлен`,'ok')}
+
+function buildScript(){
+  const s=[];const at=(t,f)=>s.push([t,f]);
+  const L=(id,name,role,room,x={})=>({id,name,role,model:'sonnet',effort:'high',room,lead:true,parent:'Дирижёр',...x});
+  const Wk=(id,name,room,model,parent,t,icon)=>({id,name,role:'Исполнитель',model,effort:'high',room,parent,task:t,icon});
+  at(0,()=>{setPhase(0,true);
+    place({id:'pm',name:'Дирижёр',role:'Project manager',model:'opus',effort:'high',room:'pm',task:'Ждёт бриф',icon:'🧭',tie:true});
+    place({id:'sec',name:'Секретарь',role:'Intake (часть дирижёра)',model:'opus',effort:'high',room:'reception',task:'Спрашивает: что продаём? оплата? стиль?',icon:'❓',long:true});
+    log('Новый запрос: «сделай красивый интернет-магазин»','phase')});
+  at(3,()=>log('Раунд 1: 4 вопроса → ответы получены'));
+  at(6,()=>log('Раунд 2: 3 вопроса → ясность 94%, старт','ok'));
+  at(7,()=>{task('sec','Несёт бриф дирижёру','📁');go('sec','pm',{carry:'doc'})});
+  at(11,()=>go('sec','reception',{task:'На ресепшене',icon:null}));
+  at(12,()=>{setPhase(1);task('pm','Раздаёт задачи отделам','🧭');spawn(L('rl','Research-лид','Лид research','library',{task:'Планирует исследование',icon:'🔍'}))});
+  at(13.5,()=>spawn(Wk('rw1','Поисковик-1','library','haiku','Research-лид','Тренды e-commerce 2026','🔍')));
+  at(14.5,()=>spawn(Wk('rw2','Поисковик-2','library','haiku','Research-лид','Разбор 5 конкурентов','🔍')));
+  at(15.5,()=>spawn(Wk('rw3','Поисковик-3','library','haiku','Research-лид','Оплата и доставка в регионе','🔍')));
+  at(22,()=>leave('rw1','✓ Тренды собраны'));
+  at(23.5,()=>leave('rw2','✓ Конкуренты разобраны'));
+  at(25,()=>leave('rw3','✓ Оплата и доставка'));
+  at(25.5,()=>{task('rl','Несёт research-отчёт','📁');go('rl','pm',{carry:'doc'})});
+  at(30,()=>{leave('rl');setPhase(2);go('pm','meeting',{task:'Совещание: архитектура и API',icon:'💬'})});
+  at(30.3,()=>spawn(L('dl','Дизайн-лид','Лид дизайна','meeting',{task:'Совещание',icon:'💬'})));
+  at(30.9,()=>spawn(L('fl','Фронт-лид','Лид фронтенда','meeting',{task:'Совещание',icon:'💬'})));
+  at(31.5,()=>spawn(L('bl','Бэк-лид','Лид бэкенда','meeting',{task:'Совещание',icon:'💬'})));
+  at(32,()=>spawn(L('docl','Док-лид','Лид документации','docs',{task:'Пишет SPEC.md',icon:'📝'})));
+  at(37,()=>{task('docl','Пишет PLAN.md','📝');log('SPEC.md готов','ok')});
+  at(40,()=>{log('Решение: Next.js + Postgres → DECISIONS.md');go('dl','design',{task:'Design system',icon:'🎨'});go('fl','frontend',{task:'Делит страницы',icon:'🧩'});go('bl','backend',{task:'Схема БД',icon:'🗄️'});go('pm','pm',{task:'Следит за PLAN.md',icon:'🧭'})});
+  at(43,()=>log('PLAN.md готов: 42 задачи','ok'));
+  at(44,()=>{setPhase(3);serverBusy=true;task('docl','Ведёт PROGRESS.md','📝')});
+  at(45,()=>spawn(Wk('dw1','Дизайнер-1','design','sonnet','Дизайн-лид','Макет главной и каталога','🎨')));
+  at(45.6,()=>spawn(Wk('dw2','Дизайнер-2','design','haiku','Дизайн-лид','Иконки и ассеты','🎨')));
+  at(46.2,()=>spawn(Wk('fw1','Фронт-1','frontend','sonnet','Фронт-лид','Главная страница','⌨️')));
+  at(46.8,()=>spawn(Wk('fw2','Фронт-2','frontend','sonnet','Фронт-лид','Каталог и фильтры','⌨️')));
+  at(47.4,()=>spawn(Wk('fw3','Фронт-3','frontend','haiku','Фронт-лид','Вёрстка корзины','⌨️')));
+  at(48,()=>spawn(Wk('bw1','Бэк-1','backend','sonnet','Бэк-лид','API товаров','⌨️')));
+  at(48.6,()=>spawn(Wk('bw2','Бэк-2','backend','sonnet','Бэк-лид','Авторизация','⌨️')));
+  at(49.2,()=>spawn(Wk('bw3','Бэк-3','backend','haiku','Бэк-лид','Seed-данные','⌨️')));
+  at(55,()=>{task('dw1','Несёт макет фронтендерам','📁');go('dw1','frontend',{carry:'design'})});
+  at(58,()=>go('docl','archive',{task:'Обновляет PROGRESS и DECISIONS',icon:'🗂️'}));
+  at(60,()=>go('dw1','design',{task:'Правки по фидбеку',icon:'🎨'}));
+  at(63,()=>leave('dw2','✓ Иконки готовы'));
+  at(64,()=>go('docl','docs',{task:'Пишет README',icon:'📝'}));
+  at(65,()=>leave('fw3','✓ Корзина свёрстана'));
+  at(66.5,()=>leave('bw3','✓ Seed-данные'));
+  at(68,()=>leave('dw1','✓ Макеты готовы'));
+  at(70,()=>leave('fw1','✓ Главная'));
+  at(71,()=>leave('fw2','✓ Каталог'));
+  at(72.5,()=>leave('bw1','✓ API товаров'));
+  at(74,()=>leave('bw2','✓ Авторизация'));
+  at(77,()=>{log('Лимит подписки → пауза, HANDOFF.md сохранён','warn');serverBusy=false;['dl','fl','bl'].forEach(id=>go(id,'kitchen',{task:'Ждёт сброс лимита',icon:'☕'}));task('pm','Ждёт сброс лимита','⏳')});
+  at(84,()=>{log('Лимит сброшен → продолжаем с HANDOFF.md','ok');go('dl','design',{task:'Полировка UI',icon:'🎨'});go('fl','frontend',{task:'Сборка страниц',icon:'🧩'});go('bl','backend',{task:'Интеграция оплаты',icon:'💳'});task('pm','Следит за PLAN.md','🧭')});
+  at(88,()=>{setPhase(4);serverBusy=true;spawn(L('ql','QA-лид','Лид тестирования','qa',{task:'План тестов',icon:'🧪'}))});
+  at(88.6,()=>spawn(L('sl','Security-лид','Лид безопасности','security',{task:'Аудит: XSS, CSRF, SQLi',icon:'🛡️'})));
+  at(89.2,()=>spawn(Wk('qw1','Тестер-1','qa','haiku','QA-лид','playwright: оформление заказа','🧪')));
+  at(89.8,()=>spawn(Wk('qw2','Тестер-2','qa','haiku','QA-лид','Unit-тесты API','🧪')));
+  at(90.4,()=>spawn(Wk('qw3','Тестер-3','qa','haiku','QA-лид','Lint и typecheck','🧪')));
+  at(91,()=>spawn(Wk('sw1','Сканер-1','security','haiku','Security-лид','Скан зависимостей','🛡️')));
+  at(94,()=>bug('BUG-1 API: 500 на пустой корзине'));
+  at(95.5,()=>bug('BUG-3 корзина теряет товар после F5'));
+  at(97,()=>bug('BUG-5 оплата: двойное списание при ретрае'));
+  at(98,()=>bug('SEC-1 XSS в поиске'));
+  at(99,()=>{go('qw1','frontend',{carry:'bug',task:'Несёт BUG-3 и SEC-1',icon:'🐞'});go('qw2','backend',{carry:'bug',task:'Несёт BUG-1 и BUG-5',icon:'🐞'})});
+  at(102,()=>{setPhase(5);task('fl','Фикс BUG-3 · попытка 1/2','🔨');task('bl','Фикс BUG-5 · попытка 1/2','🔨');spawn(Wk('bw4','Фиксер-1','backend','sonnet','Бэк-лид','Фикс BUG-1','🔨'))});
+  at(102.6,()=>spawn(Wk('fw4','Фиксер-2','frontend','sonnet','Фронт-лид','Фикс SEC-1 (XSS)','🔨')));
+  at(104,()=>{go('qw1','qa',{task:'Ждёт фиксы',icon:'⏳'});go('qw2','qa',{task:'Ждёт фиксы',icon:'⏳'})});
+  at(107,()=>{fix('BUG-1');fix('BUG-3');task('fl','Проверяет фикс','🧩')});
+  at(108,()=>{log('BUG-5: попытка 1/2 не помогла','warn');task('bl','Фикс BUG-5 · попытка 2/2','🔨')});
+  at(110,()=>{fix('SEC-1');leave('fw4');leave('bw4')});
+  at(112,()=>{setPhase(6);['qw1','qw2','qw3'].forEach(id=>task(id,'Ретест всех багов','🧪'));task('ql','Ретест и регрессия','🧪')});
+  at(117,()=>{stats.bugsOpen--;stats.unres++;log('BUG-5: попытка 2/2 провалилась → UNRESOLVED, записан в BUGS.md','bug');task('bl','Записывает, что пробовал','📝')});
+  at(119,()=>{leave('qw1');leave('qw2')});
+  at(120,()=>{leave('qw3');leave('sw1','✓ Аудит: 0 критичных')});
+  at(121,()=>{setPhase(7);serverBusy=false;task('docl','Пишет REPORT.md','📝');task('ql','Несёт итоги QA','📁');go('ql','docs',{carry:'doc'})});
+  at(126,()=>{task('docl','Несёт REPORT.md дирижёру','📁');go('docl','pm',{carry:'doc'})});
+  at(130,()=>go('pm','reception',{carry:'doc',task:'Отдаёт отчёт пользователю',icon:'📋'}));
+  at(133,()=>{task('sec','Готово! Отчёт у вас','✅');log('Проект готов: 41/42 задач, 1 нерешённая проблема (BUG-5) описана в REPORT.md','ok')});
+  ['dl','fl','bl','ql','sl','docl'].forEach((id,i)=>at(134+i*0.8,()=>leave(id)));
+  at(141,()=>{go('pm','pm',{task:'Ждёт новый запрос',icon:'💤'});task('sec','Ждёт новый запрос','💤')});
+  at(152,()=>reset());
+  return s.sort((x,y)=>x[0]-y[0]);
+}
+function tasksDone(t){
+  if(t<44)return 0;if(t<77)return Math.round(2+(t-44)/33*34);if(t<102)return Math.min(38,36+Math.floor((t-84)/6));
+  if(t<121)return 38+(t>=107?2:0)+(t>=110?1:0);return 41;
+}
+function update(dt){
+  for(const a of agents){
+    a.anim+=dt;
+    if(a.path.length){const p=a.path[0],dx=p.x-a.x,dy=p.y-a.y,d=Math.hypot(dx,dy),st=SPEED*dt;
+      if(d<=st){a.x=p.x;a.y=p.y;a.path.shift();if(!a.path.length){a.carry=null;if(a.leaving)a.fade=-1}}
+      else{a.x+=dx/d*st;a.y+=dy/d*st}}
+    a.alpha=Math.max(0,Math.min(1,a.alpha+a.fade*dt*2.5));
+  }
+  agents=agents.filter(a=>!(a.leaving&&a.fade<0&&a.alpha<=0));
+  if(!LIVE)stats.tokens+=agents.length*dt*2600;
+}
+
+// ---------- rendering ----------
+const cv=document.getElementById('c'),dc=cv.getContext('2d');
+const fr=document.createElement('canvas');fr.width=W*QS;fr.height=H*QS;const fx=fr.getContext('2d');
+let K=1;
+function resize(){const w=cv.parentElement.clientWidth-16,dpr=window.devicePixelRatio||1;const S=w/W;cv.width=Math.round(W*S*dpr);cv.height=Math.round(H*S*dpr);cv.style.height=Math.round(H*S)+'px';K=S*dpr}
+new ResizeObserver(resize).observe(cv.parentElement);resize();
+
+const F=(c,x,y,w,h)=>{fx.fillStyle=c;fx.fillRect(x,y,w,h)};
+function drawAgent(a){
+  const x=0,y=0,m=MODELS[a.model],walk=a.path.length>0,st=walk?Math.floor(a.anim*8)%2:0;
+  const typing=!walk&&a.task&&Math.floor(a.anim*6)%2;
+  fx.save();fx.translate(Math.round(a.x),Math.round(a.y));fx.scale(AS,AS);fx.globalAlpha=a.alpha;
+  if(sel&&sel.type==='agent'&&sel.id===a.id){F('#f5c451',x-6,y+1,12,1);F('#f5c451',x-7,y,1,1);F('#f5c451',x+6,y,1,1)}
+  F('rgba(0,0,0,0.3)',x-4,y-1,8,2);
+  F('#2a2f3d',x-3,y-5,2,5-st);F('#2a2f3d',x+1,y-5,2,4+st);F('#111',x-3,y-1-st,2,1);F('#111',x+1,y-2+st,2,1);
+  F(m.c,x-4,y-11,8,6);F(m.d,x-4,y-6,8,1);
+  F(m.d,x-5,y-10-(typing?1:0),1,4);F(m.d,x+4,y-10-(typing?0:1),1,4);F(a.skin,x-5,y-7-(typing?1:0),1,1);F(a.skin,x+4,y-7-(typing?0:1),1,1);
+  if(a.tie)F('#c0392b',x-1,y-11,2,4);
+  if(a.lead)F('#f5c451',x+2,y-10,1,1);
+  F(a.skin,x-3,y-15,6,4);F('#111',x-2,y-13,1,1);F('#111',x+1,y-13,1,1);
+  F(a.hair,x-3,y-16,6,2);if(a.long){F(a.hair,x-4,y-15,1,5);F(a.hair,x+3,y-15,1,5)}
+  if(a.carry){F(CARRY[a.carry],x+3,y-9,5,5);F('rgba(0,0,0,0.25)',x+3,y-9,5,1)}
+  fx.restore();
+}
+function inRoom(a,r){return a.alpha>0.2&&a.x>=r.x&&a.x<r.x+r.w&&a.y>=r.y&&a.y<r.y+r.h}
+function render(){
+  fx.setTransform(QS,0,0,QS,0,0);fx.imageSmoothingEnabled=false;fx.drawImage(bg,0,0);
+  for(const r of ROOMS)for(const m of r.mons){const o=m.seat.occ,on=o&&!o.path.length&&o.task&&!o.leaving&&inRoom(o,r);
+    F(on?(frameN%6<3?'#7fe3ff':'#62d2ef'):'#1f2633',m.x,m.y,m.w,m.h);if(on)F('#2a6f86',m.x+1,m.y+1+(frameN%3),m.w-3,1)}
+  RM.server.racks.forEach((k,ri)=>{for(let i=0;i<9;i++)for(let j=0;j<2;j++){const v=Math.sin(i*13.7+ri*7.1+j*3.3+Math.floor(frameN/3)*1.7);F(serverBusy?(v>0.2?'#3ddc84':v>-0.3?'#f5c451':'#1e3a2a'):'#1e3a2a',k.x+3+j*7,k.y+3+i*4,2,1)}});
+  const P=RM.pm.board;for(let i=0;i<8;i++)F(i<phaseIdx?'#5fd38d':i===phaseIdx?'#f5c451':'#c9ced8',P.x+i*4.5,P.y,3,4);
+  for(let i=0;i<stats.bugsOpen;i++)F('#ff6b6b',P.x+i*4,P.y+8,2,2);for(let i=0;i<stats.unres;i++)F('#7a1f1f',P.x+i*4,P.y+12,2,2);
+  const K2=RM.kitchen;if(agents.some(a=>inRoom(a,K2))){const t=frameN%12;F('rgba(220,220,230,0.6)',K2.x+13,K2.y+6-t/3,1,1);F('rgba(220,220,230,0.4)',K2.x+15,K2.y+4-t/4,1,1)}
+  [...agents].sort((p,q)=>p.y-q.y).forEach(drawAgent);
+  for(const r of ROOMS){const busy=agents.some(a=>inRoom(a,r))||(r.id==='server'&&serverBusy);if(!busy)F('rgba(6,9,16,0.48)',r.x,r.y,r.w,r.h)}
+  const Q=RM.qa;if(stats.unres>0&&frameN%10<6){F('#ff4040',Q.x+Q.w-12,Q.y+4,5,5);F('rgba(255,64,64,0.25)',Q.x+Q.w-15,Q.y+1,11,11)}
+
+  dc.setTransform(1,0,0,1,0,0);dc.imageSmoothingEnabled=false;dc.drawImage(fr,0,0,cv.width,cv.height);
+  dc.setTransform(K,0,0,K,0,0);dc.textBaseline='middle';
+  dc.font='bold 9px Consolas, ui-monospace, monospace';dc.textAlign='center';dc.fillStyle='#2a2216';dc.fillRect(W/2-68,13,136,20);dc.fillStyle='#f5c451';dc.fillText('CONDUCTOR OFFICE',W/2,23.5);
+  dc.font='bold 7px Consolas, ui-monospace, monospace';dc.textAlign='left';
+  for(const r of ROOMS){const n=agents.filter(a=>inRoom(a,r)).length;const t=r.name+(n?` · ${n}`:'');const w=dc.measureText(t).width+5,y=r.y+r.h-11;
+    dc.fillStyle='rgba(10,12,18,0.72)';dc.fillRect(r.x+2,y,w,9);dc.fillStyle=n?'#f2f4f8':'#9aa2b2';dc.fillText(t,r.x+4.5,y+4.9)}
+  dc.textAlign='center';
+  for(const a of agents){if(!a.icon||a.alpha<0.3)continue;const bx=a.x-7.5,by=a.y-40;dc.globalAlpha=a.alpha;
+    dc.fillStyle='rgba(255,255,255,0.95)';dc.fillRect(bx,by,15,12);dc.beginPath();dc.moveTo(a.x-2,by+12);dc.lineTo(a.x+2,by+12);dc.lineTo(a.x,by+15);dc.fill();
+    dc.font='8.5px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';dc.fillText(a.icon,a.x,by+6.5);dc.globalAlpha=1}
+  const lab=[hover&&A(hover),sel&&sel.type==='agent'&&agents.find(a=>a.id===sel.id)].filter(Boolean);
+  dc.font='bold 7px Consolas, ui-monospace, monospace';
+  for(const a of new Set(lab)){const t=`${a.name} · ${MODELS[a.model].n}`;const w=dc.measureText(t).width+6,y=a.y-(a.icon?51:36);
+    dc.fillStyle='rgba(10,12,18,0.9)';dc.fillRect(a.x-w/2,y,w,9);dc.fillStyle=MODELS[a.model].c;dc.fillText(t,a.x,y+4.9)}
+}
+
+// ---------- UI ----------
+const $=id=>document.getElementById(id),logEl=$('log'),phEl=$('phases');
+PHASES.forEach((p,i)=>{const d=document.createElement('div');d.className='ph';d.textContent=`${i+1}. ${p}`;phEl.appendChild(d)});
+function setPhase(i,silent){phaseIdx=i;[...phEl.children].forEach((d,k)=>d.className='ph'+(k<i?' done':k===i?' cur':''));if(!silent)log(`Фаза ${i+1}: ${PHASES[i]}`,'phase')}
+const MIN_PER_SIM=10.4;
+function clock(t){if(LIVE)return new Date().toTimeString().slice(0,5);const m=Math.floor(9*60+t*MIN_PER_SIM),d=Math.floor(m/1440)+1,hh=String(Math.floor(m%1440/60)).padStart(2,'0'),mm=String(m%60).padStart(2,'0');return `д${d} ${hh}:${mm}`}
+function log(text,kind=''){const li=document.createElement('li');li.innerHTML=`<time>${clock(simT)}</time><span class="${kind}"></span>`;li.lastChild.textContent=text;logEl.prepend(li);while(logEl.children.length>120)logEl.lastChild.remove()}
+const fmtTok=n=>n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?Math.round(n/1e3)+'k':String(Math.round(n));
+function updStats(){
+  $('s-created').textContent=stats.created;$('s-active').textContent=agents.filter(a=>!a.leaving).length;
+  $('s-tasks').textContent=LIVE?`${LV.done} / ${LV.total}`:`${tasksDone(simT)} / ${TOTAL_TASKS}`;$('s-bugs').textContent=`${stats.bugsOpen} · ${stats.bugsFixed} · ${stats.unres}`;
+  $('s-tokens').textContent=fmtTok(stats.tokens);const m=LIVE?Math.floor((Date.now()-LV.start)/60000):Math.floor(simT*MIN_PER_SIM);$('s-time').textContent=`${Math.floor(m/60)}ч ${m%60}м`;
+}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function updDetail(){
+  const el=$('detail');
+  if(!sel){el.innerHTML='<p class="hint">Нажми на сотрудника или комнату.</p>';return}
+  if(sel.type==='agent'){const a=agents.find(x=>x.id===sel.id);if(!a){el.innerHTML='<p class="hint">Агент закончил работу и ушёл.</p>';return}
+    const m=MODELS[a.model],st=a.leaving?'Уходит':a.path.length?'Идёт':a.task?'Работает':'Ждёт',mins=Math.floor((simT-a.born)*MIN_PER_SIM);
+    el.innerHTML=`<div class="name">${esc(a.name)}<span class="chip" style="background:${m.c}">${m.n}</span></div>
+    <div class="kv"><span>Роль</span><span>${esc(a.role)}</span><span>Effort</span><span>${a.effort}</span><span>Комната</span><span>${esc(RM[a.room].name)}</span>
+    <span>Статус</span><span>${st}</span><span>Задача</span><span>${esc(a.task||'—')}</span><span>Начальник</span><span>${esc(a.parent)}</span><span>В работе</span><span>${Math.floor(mins/60)}ч ${mins%60}м</span></div>`;return}
+  const r=RM[sel.id],list=agents.filter(a=>a.room===r.id&&!a.leaving);
+  el.innerHTML=`<div class="name">${esc(r.name)}</div><p class="hint" style="margin-top:4px">${esc(r.desc)}</p>
+  <ul class="list">${list.length?list.map(a=>`<li><span style="color:${MODELS[a.model].c}">●</span> ${esc(a.name)} <small>· ${esc(a.task||'—')}</small></li>`).join(''):'<li><small>Сейчас никого</small></li>'}</ul>`;
+}
+function toLogical(e){const rc=cv.getBoundingClientRect();return{x:(e.clientX-rc.left)/rc.width*W,y:(e.clientY-rc.top)/rc.height*H}}
+function hitAgent(p){let best=null;for(const a of agents){if(a.alpha<0.3)continue;if(p.x>=a.x-9&&p.x<=a.x+9&&p.y>=a.y-26&&p.y<=a.y+3&&(!best||a.y>best.y))best=a}return best}
+const hitRoom=p=>ROOMS.find(r=>p.x>=r.x&&p.x<r.x+r.w&&p.y>=r.y&&p.y<r.y+r.h);
+cv.addEventListener('click',e=>{const p=toLogical(e),a=hitAgent(p);if(a)sel={type:'agent',id:a.id};else{const r=hitRoom(p);sel=r?{type:'room',id:r.id}:null}updDetail()});
+cv.addEventListener('mousemove',e=>{const p=toLogical(e),a=hitAgent(p);hover=a?a.id:null;cv.style.cursor=a||hitRoom(p)?'pointer':'default'});
+cv.addEventListener('mouseleave',()=>hover=null);
+$('pause').onclick=e=>{paused=!paused;e.target.textContent=paused?'Продолжить':'Пауза'};
+document.querySelectorAll('[data-speed]').forEach(btn=>btn.onclick=()=>{speed=+btn.dataset.speed;document.querySelectorAll('[data-speed]').forEach(x=>x.classList.toggle('on',x===btn))});
+$('restart').onclick=()=>reset();
+
+// ---------- live mode ----------
+const MODEL_OF=m=>/haiku/i.test(m)?'haiku':/sonnet/i.test(m)?'sonnet':'opus';
+function roomFor(kind,title){
+  if(kind==='research')return'library';if(kind==='verify')return'qa';if(kind==='security')return'security';
+  if(kind==='report')return'docs';if(kind==='integrate')return'meeting';
+  const t=String(title||'');
+  if(/\b(ui|ux|front|page|component|css|style|react|vue|view|screen)\b|экран|страниц|интерфейс/i.test(t))return'frontend';
+  if(/design|дизайн|макет/i.test(t))return'design';
+  if(/\b(docs?|readme|guide)\b|документ/i.test(t))return'docs';
+  if(/\b(deploy|infra|docker|ci|build|pipeline|server)\b|сервер|сборк/i.test(t))return'server';
+  return'backend';
+}
+const ICON={build:'⌨️',fix:'🔧',verify:'🧪',security:'🛡️',integrate:'🔀',report:'📝',research:'🔍'};
+function liveAgent(r){
+  const room=roomFor(r.kind,r.title),ex=A(r.id),model=MODEL_OF(r.model);
+  if(ex){ex.model=model;ex.effort=r.effort||ex.effort;if(ex.room!==room)go(r.id,room,{task:r.title,icon:ICON[r.kind]||'⌨️'});else task(r.id,r.title,ICON[r.kind]||'⌨️');return}
+  spawn({id:r.id,name:r.id,role:r.kind,model,effort:r.effort||'—',room,parent:'Дирижёр',task:r.title,icon:ICON[r.kind]||'⌨️',worker:true});
+}
+function liveState(s){
+  LV.done=s.counts.done||0;LV.total=Object.values(s.counts).reduce((a,b)=>a+b,0)-(s.counts.cancelled||0);LV.start=Date.parse(s.created)||LV.start;
+  stats.bugsOpen=s.bugsOpen;stats.bugsFixed=s.bugsFixed;stats.unres=s.counts.unresolved||0;stats.tokens=s.tokens;
+  const ids=new Set(s.running.map(r=>r.id));
+  s.running.forEach(liveAgent);
+  for(const a of agents)if(a.worker&&!a.leaving&&!ids.has(a.id)){
+    if(s.paused&&a.room!=='kitchen')go(a.id,'kitchen',{task:'Ждёт: лимит подписки',icon:'⏳'});
+    else if(!s.paused)leave(a.id);
+  }
+  serverBusy=s.running.some(r=>r.kind==='verify'||r.kind==='integrate');
+  const ph=!s.intakeClosed&&!s.running.length&&!LV.done?0:s.stage==='security'?4:s.stage==='final'?6:s.stage==='report'||s.stage==='finished'?7
+    :s.running.some(r=>r.kind==='fix')?5:s.running.some(r=>r.kind==='verify')?4:3;
+  if(ph!==phaseIdx)setPhase(ph,phaseIdx<0);
+  task('sec',s.questions?`Вопрос воркера ждёт ответа (${s.questions})`:s.intakeClosed?'Интервью закрыто, вы свободны':'Интервью с пользователем',s.questions?'❓':s.intakeClosed?'💤':'💬');
+  task('pm',s.stage==='finished'?'Готово: REPORT.md':s.paused?'Пауза: '+(s.pauseWhy||'лимит'):`Этап: ${s.stage} · в работе ${s.running.length}`,s.stage==='finished'?'✅':s.paused?'⏸️':'🧭');
+  if(s.paused)LV.pausedSeen=true;
+}
+function liveEvent(e){
+  const id=e.id||e.task||'';
+  switch(e.type){
+    case 'launch':if(e.replay)log(`+ ${id} (${e.model}/${e.effort})`);else liveAgent(e);break;
+    case 'done':log(e.kind==='fix'?`✓ ${id} исправлен`:`✓ ${id} готово`,'ok');break;
+    case 'escalate':log(`↑ ${id}: попытка ${e.attempt+1} на ${e.model}/${e.effort}`);break;
+    case 'unresolved':log(`✗ ${id} не решён после всех попыток`,'bug');break;
+    case 'bug':log('🐞 '+(e.title||id),'bug');break;
+    case 'conflict':log(`⚠ ${id}: конфликт слияния, создана задача интеграции`,'bug');break;
+    case 'question':log(`❓ ${id} задал вопрос`);break;
+    case 'answer':log(`💬 ответ для ${id}`);break;
+    case 'pause':log(`⏸ пауза ${e.minutes} мин: ${e.why}`,'bug');break;
+    case 'resume':log('▶ работа продолжается','ok');break;
+    case 'stage':log(`Этап: ${e.stage}`,'phase');break;
+    case 'intake-closed':log('Интервью закрыто, дальше без вопросов','phase');break;
+    case 'part-final':log(`Часть ${e.part} уточнена, в работу`);break;
+    case 'part-done':log(`Часть ${e.part} готова`,'ok');break;
+    case 'blocked':log(`⛔ ${id||'дирижёр'} ${e.tool}: ${e.reason}`,'bug');break;
+    case 'finished':log('Проект завершён: REPORT.md готов','ok');break;
+    case 'stopped':log('Остановлено пользователем','bug');break;
+    case 'deadline':log('Дедлайн: оставшиеся задачи пропущены, пишется отчёт','bug');break;
+  }
+}
+function liveInit(){
+  place({id:'pm',name:'Дирижёр',role:'Conductor',model:'opus',effort:'high',room:'pm',task:'Подключение…',icon:'🧭',tie:true});
+  place({id:'sec',name:'Секретарь',role:'Intake',model:'opus',effort:'high',room:'reception',task:'—',icon:'💬',long:true});
+  if(LV.es)LV.es.close();
+  const es=LV.es=new EventSource('events');
+  es.addEventListener('state',m=>{try{liveState(JSON.parse(m.data))}catch(e){}});
+  es.addEventListener('ev',m=>{try{liveEvent(JSON.parse(m.data))}catch(e){}});
+  es.onerror=()=>task('pm','Нет связи с сервером…','📡');
+  document.title='OPFR live';
+  const bd=document.querySelector('.badge');if(bd)bd.textContent='live · события диспетчера';
+  document.querySelectorAll('#pause,[data-speed]').forEach(x=>x.style.display='none');
+}
+function reset(){
+  agents=[];ROOMS.forEach(r=>{r.seats.forEach(s=>s.occ=null);r.spots.forEach(s=>s.occ=null)});
+  simT=0;si=0;serverBusy=false;stats={created:0,bugsOpen:0,bugsFixed:0,unres:0,tokens:0};logEl.innerHTML='';if(LIVE){script=[];liveInit();return}script=buildScript();
+}
+reset();
+
+let last=performance.now(),uiT=0;
+function loop(now){
+  requestAnimationFrame(loop);
+  const el=now-last;if(el<1000/FPS-2)return;last=now;
+  const dt=Math.min(el/1000,0.25);
+  if(!paused){const sd=dt*speed;simT+=sd;while(si<script.length&&script[si][0]<=simT){const f=script[si][1];si++;f()}update(sd)}
+  frameN++;render();
+  uiT+=dt;if(uiT>0.3){uiT=0;updStats();if(sel)updDetail()}
+}
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

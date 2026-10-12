@@ -1,0 +1,29 @@
+{
+  "description": "OPFR hooks. All are no-ops outside an OPFR project or worker, except headroom ensure.",
+  "hooks": {
+    "SessionStart": [
+      { "matcher": "startup|resume", "hooks": [
+        { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.js\"", "timeout": 10 },
+        { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/headroom.js\"", "timeout": 15 }
+      ] }
+    ],
+    "PreToolUse": [
+      { "matcher": "Bash|PowerShell|Write|Edit|MultiEdit|NotebookEdit|Read|Glob|Grep", "hooks": [
+        { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/guard.js\"", "timeout": 10 }
+      ] },
+      { "matcher": "Bash|PowerShell", "hooks": [
+        { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/headroom.js\"", "timeout": 15 }
+      ] }
+    ],
+    "PostToolUse": [
+      { "matcher": "Write|Edit|MultiEdit", "hooks": [
+        { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/security-patterns.js\"", "timeout": 10 }
+      ] }
+    ],
+    "Stop": [
+      { "hooks": [
+        { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/stop-gate.js\"", "timeout": 10 }
+      ] }
+    ]
+  }
+}
