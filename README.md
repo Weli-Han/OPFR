@@ -8,8 +8,8 @@ Workers build, test, fix, and review in parallel. When you return, `REPORT.md` i
 
 It works for any task type: code, data/ML, infrastructure, automation, research, and docs.
 
-> **Status: experimental (0.1.0-alpha).** The full lifecycle passes its tests with a mock CLI.
-> Runs with the real Claude CLI are still few. Expect rough edges.
+> **Status: 1.0.2.** The full lifecycle passes its tests with a mock CLI, and two runs with the real
+> Claude CLI finished. Real-world use is still small. Expect rough edges.
 
 > **Warning: workers run without permission prompts.** Each worker is a headless `claude -p`
 > process in `bypassPermissions` mode. A guard hook limits writes to the task's own git worktree

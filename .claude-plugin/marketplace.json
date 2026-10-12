@@ -7,7 +7,7 @@
       "name": "opfr",
       "source": "./",
       "description": "One Prompt, Full Result: interview once, then autonomous parallel build, verify, fix, and an honest report.",
-      "version": "0.1.0-alpha",
+      "version": "1.0.2",
       "license": "MIT"
     }
   ]
