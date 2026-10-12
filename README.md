@@ -21,7 +21,7 @@ It works for any task type: code, data/ML, infrastructure, automation, research,
 ## Install
 
 ```
-/plugin marketplace add Weli-Han/opfr
+/plugin marketplace add Weli-Han/OPFR
 /plugin install opfr@opfr
 ```
 
