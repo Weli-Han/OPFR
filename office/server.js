@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // OPFR office: live pixel-office view of one project. Read-only, light (one 1 s poll shared by all viewers).
-// Usage: node office/server.js <project> [--port 7788] [--lan]
+// Usage: node office/server.js <project> [--port <n>] [--lan]
+// Without --port it takes the first free port from 7788 up, so each project gets its own site.
+// It writes .opfr/office.json (port, pid, url) and exits 30 min after the run finishes with no viewers.
 // Default bind is 127.0.0.1. --lan binds all interfaces but answers only private-network clients.
 'use strict';
 const fs = require('fs');
@@ -11,12 +13,16 @@ const args = process.argv.slice(2);
 const flag = (n, d) => { const i = args.indexOf('--' + n); return i >= 0 ? args[i + 1] : d; };
 const PROJECT = path.resolve(args.find(a => !a.startsWith('--') && a !== flag('port')) || process.cwd());
 const O = path.join(PROJECT, '.opfr');
-const PORT = Number(flag('port', 7788));
+const FIXED = flag('port') != null;
+let PORT = Number(flag('port', 7788));
 const LAN = args.includes('--lan');
 const MAX_CLIENTS = 8;
 if (!fs.existsSync(path.join(O, 'board.json'))) { console.error('No OPFR project at ' + PROJECT); process.exit(1); }
 
-const page = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8').replace('<script>', '<script>window.OPFR_LIVE=1;</script>\n<script>');
+const NAME = path.basename(PROJECT).replace(/[<>&"']/g, '');
+const page =fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8').replace('<script>', '<script>window.OPFR_LIVE=1;</script>\n<script>')
+  .replace('<title>Conductor Office</title>', `<title>${NAME} · OPFR office</title>`).replace('<h1>Conductor Office</h1>', `<h1>${NAME} · Conductor Office</h1>`);
+const INFO = path.join(O, 'office.json');
 
 function privateAddr(a) {
   a = String(a || '').replace(/^::ffff:/, '');
@@ -70,10 +76,16 @@ function poll() {
 }
 readNewEvents(); // skip history; new viewers get the last few lines from `recent`
 setInterval(poll, 1000);
+// Free the port once the run is over and nobody is watching.
+let idleSince = Date.now();
+setInterval(() => {
+  if (clients.size || !fs.existsSync(path.join(O, 'DONE'))) { idleSince = Date.now(); return; }
+  if (Date.now() - idleSince > 30 * 60000) bye();
+}, 60000);
 setInterval(() => { for (const res of clients) res.write(': ping\n\n'); }, 25000);
 
 // ---- http --------------------------------------------------------------------
-http.createServer((req, res) => {
+const server = http.createServer((req, res) => {
   if (!privateAddr(req.socket.remoteAddress) || !hostOk(req.headers.host)) { res.writeHead(403); return res.end(); }
   const url = req.url.split('?')[0];
   const sec = { 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-store' };
@@ -95,8 +107,13 @@ http.createServer((req, res) => {
   }
   res.writeHead(404, sec); res.end();
 }).on('error', e => {
+  if (e.code === 'EADDRINUSE' && !FIXED && PORT < 7888) return server.listen(++PORT, LAN ? '0.0.0.0' : '127.0.0.1');
   console.error(e.code === 'EADDRINUSE' ? `Port ${PORT} is busy. Use --port <n>.` : e.message);
   process.exit(1);
-}).listen(PORT, LAN ? '0.0.0.0' : '127.0.0.1', () => {
-  console.log(`OPFR office: http://${LAN ? '<this-pc-lan-ip>' : '127.0.0.1'}:${PORT}/  (project ${PROJECT})`);
-});
+}).on('listening', () => {
+  const url = `http://${LAN ? '<this-pc-lan-ip>' : '127.0.0.1'}:${PORT}/`;
+  fs.writeFileSync(INFO, JSON.stringify({ port: PORT, pid: process.pid, url, lan: LAN }));
+  console.log(`OPFR office: ${url}  (project ${PROJECT})`);
+}).listen(PORT, LAN ? '0.0.0.0' : '127.0.0.1');
+function bye() { try { if (JSON.parse(fs.readFileSync(INFO, 'utf8')).pid === process.pid) fs.unlinkSync(INFO); } catch {} process.exit(0); }
+process.on('SIGINT', bye); process.on('SIGTERM', bye);

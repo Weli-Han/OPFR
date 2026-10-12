@@ -13,7 +13,7 @@
 //   op <project> <json>                               queue one raw op (meta/part/draft/task/cancel/change/close)
 //   change <project> <json>                           queue a plan change {"parts":[..],"note":"..","tasks":[..]}
 //   ping <project>                                    mark the user as present (delays idle auto-close)
-//   office <project> [--port 7788] [--lan]            live pixel-office view in the background, print URL
+//   office <project> [--port <n>] [--lan]             this project's own office site (free port from 7788 up), print URL
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -47,6 +47,14 @@ function alive(project) {
     if (fs.statSync(f).mtimeMs < Date.now() - require('os').uptime() * 1000) return 0;
     const pid = Number(fs.readFileSync(f, 'utf8')); process.kill(pid, 0); return pid;
   } catch { return 0; }
+}
+// URL of this project's live office, or ''. office.json is written by office/server.js.
+function officeUrl(project) {
+  try {
+    const f = path.join(opfr(project), 'office.json');
+    if (fs.statSync(f).mtimeMs < Date.now() - require('os').uptime() * 1000) return '';
+    const o = JSON.parse(fs.readFileSync(f, 'utf8')); process.kill(o.pid, 0); return o.url;
+  } catch { return ''; }
 }
 // Registry of started projects, so resume-all also finds projects outside the work root.
 const REG = path.join(process.env.OPFR_HOME || path.join(require('os').homedir(), '.opfr'), 'projects.txt');
@@ -145,6 +153,7 @@ switch (cmd) {
     const lines = s.split('\n');
     console.log((rest.includes('--full') ? lines : lines.slice(0, 7)).join('\n').trim());
     console.log(`dispatcher: ${alive(p) ? 'running pid ' + alive(p) : fs.existsSync(path.join(opfr(p), 'DONE')) ? 'finished' : 'NOT running'}`);
+    if (officeUrl(p)) console.log('office: ' + officeUrl(p));
     if (pending(p)) console.log(`inbox: ${pending(p)} op file(s) not applied yet${alive(p) ? '' : ' (run opfr start)'}`);
     break;
   }
@@ -185,11 +194,15 @@ switch (cmd) {
   case 'root': console.log(workRoot()); break;
   case 'ping': console.log(queue(rest[0], [{ op: 'meta', set: {} }])); break;
   case 'office': {
-    const p = path.resolve(rest[0]), port = flag('port', '7788');
-    const a = [path.join(PLUGIN, 'office', 'server.js'), p, '--port', port].concat(rest.includes('--lan') ? ['--lan'] : []);
+    // One office per project, each on its own port. A running one is reused.
+    const p = path.resolve(rest[0]), port = flag('port'), info = path.join(opfr(p), 'office.json');
+    if (officeUrl(p) && !port) { console.log('office: ' + officeUrl(p)); break; }
+    try { fs.unlinkSync(info); } catch {}
+    const a = [path.join(PLUGIN, 'office', 'server.js'), p].concat(port ? ['--port', port] : [], rest.includes('--lan') ? ['--lan'] : []);
     const log = fs.openSync(path.join(opfr(p), 'office.log'), 'a');
     require('child_process').spawn(process.execPath, a, { detached: true, stdio: ['ignore', log, log], windowsHide: true }).unref();
-    console.log(`office: http://127.0.0.1:${port}/  (errors: ${path.join(opfr(p), 'office.log')})`);
+    for (let i = 0; i < 50 && !fs.existsSync(info); i++) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+    console.log(officeUrl(p) ? 'office: ' + officeUrl(p) : `office did not start, see ${path.join(opfr(p), 'office.log')}`);
     break;
   }
   default:

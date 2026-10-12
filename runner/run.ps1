@@ -18,6 +18,8 @@ if (-not $node) { Log 'node not found on PATH'; exit 1 }
 $cli = Join-Path (Split-Path $PSScriptRoot -Parent) 'dispatcher\opfr.js'
 # Login entry so an unfinished project resumes after a reboot or sign-out.
 Log (& $node $cli autostart auto 2>&1)
+# Each project gets its own office site on its own port (reused if already up).
+Log (& $node $cli office $Project 2>&1)
 
 $restarts = 0
 while (-not (Test-Path (Join-Path $opfr 'DONE')) -and -not (Test-Path (Join-Path $opfr 'STOP'))) {

@@ -42,9 +42,13 @@ change tasks edit the code that is already merged. Then those parts are verified
 keep running. Security review, final verification and the report run again at the end. After the
 run has finished, a change restarts it for the changed parts only.
 
-To watch the run as a pixel office, run `node dispatcher/opfr.js office <project>` and open
-http://127.0.0.1:7788/. It binds to 127.0.0.1 only. Add `--lan` to open it to private-network
-clients (it rejects public addresses and non-IP Host headers).
+Each project gets its own pixel office: a separate site on its own port. The runner starts it
+with the run, taking the first free port from 7788 up, and `/opfr-status` or `opfr.js status <project>`
+prints its URL. Several runs at once means several sites, e.g. http://127.0.0.1:7788/ and
+http://127.0.0.1:7789/; the page title names the project. `opfr.js office <project>` prints the URL
+(or starts the office); `--port <n>` picks a port. An office stops 30 minutes after its run
+finishes when nobody is watching. It binds to 127.0.0.1 only. Add `--lan` to open it to
+private-network clients (it rejects public addresses and non-IP Host headers).
 
 Interview and build overlap. When part A is clear, its tasks start right away while the conductor
 interviews you about part B. A built part goes to verification at once. No worker waits while
@@ -138,6 +142,7 @@ Sleep is blocked while a run is active; a closed laptop lid or a shutdown still 
 node test/e2e.js          full lifecycle and plan changes with a mock CLI (no tokens)
 node test/guard-test.js   guard and security-pattern rules
 node test/autostart-test.js  resume after reboot (temp dirs only)
+node test/office-test.js     one office site per project, own port
 ```
 
 ## License
