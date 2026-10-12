@@ -130,18 +130,51 @@ if (has(NET) && !P.net && !allowExtra) {
 }
 
 // Writes or cd outside allowed roots (best-effort: absolute paths in the command).
-const WRITE = /(>{1,2}|\btee\b|\bcp\b|\bmv\b|\brm\b|\brmdir\b|\bdel\b|\berase\b|\bmkdir\b|\bmd\b|\btouch\b|\bln\b|\bcopy\b|\bmove\b|\bxcopy\b|\brobocopy\b|\bsed\s+-i|\bchmod\b|\bunzip\b|\btar\s+-?x|Copy-Item|Move-Item|Remove-Item|New-Item|Set-Content|Add-Content|Out-File|Expand-Archive|Rename-Item|\bgit\s+(clone|init|worktree)\b|\bcd\b|Set-Location|\bpushd\b)/i;
-if (has(WRITE)) {
-  // Quoted paths may contain spaces ("C:\Program Files\..."); unquoted ones end at whitespace.
-  const START = String.raw`(?:[a-zA-Z]:[\\/]|\/[a-zA-Z]\/|~[\\/]|\$HOME[\\/]|\$env:USERPROFILE[\\/]?|%USERPROFILE%[\\/]?)`;
-  const pathRe = new RegExp(String.raw`"(${START}[^"]*)"|'(${START}[^']*)'|(?:^|[\s=(>])(${START}[^\s"'|;&<>)]*)`, 'g');
-  for (const m of cmd.matchAll(pathRe)) {
-    const raw = m[1] || m[2] || m[3];
-    if (/^\/dev\//.test(raw)) continue;
-    const abs = norm(raw);
-    if (inside(abs, claudeHome)) deny('writes to ~/.claude are not allowed', cmd);
-    if (!writeAllowed(abs) && !isReadOnlyTool(abs)) deny(`path outside allowed folders: ${abs}`, cmd);
+// Each segment (split on ; && || | outside quotes) is checked on its own, so
+// `cd <worktree> && cat <project>/.opfr/briefs/X.md` reads the brief without a deny.
+const WRITE = /(>{1,2}|\btee\b|\bcp\b|\bmv\b|\brm\b|\brmdir\b|\bdel\b|\berase\b|\bmkdir\b|\bmd\b|\btouch\b|\bln\b|\bcopy\b|\bmove\b|\bxcopy\b|\brobocopy\b|\bsed\s+-i|\bchmod\b|\bunzip\b|\btar\s+-?x|Copy-Item|Move-Item|Remove-Item|New-Item|Set-Content|Add-Content|Out-File|Expand-Archive|Rename-Item|\bgit\s+(clone|init|worktree)\b|\bcd\b|Set-Location|\bpushd\b|\s-(delete|exec|execdir)\b)/i;
+// Commands that only read their path arguments (redirect targets are still checked).
+const READER = /^(cat|head|tail|less|more|ls|dir|grep|egrep|fgrep|rg|wc|diff|cmp|stat|file|sort|uniq|cut|awk|jq|test|\[|echo|printf|type|realpath|readlink|dirname|basename|du|tree|Get-Content|gc|Select-String|sls|Get-ChildItem|gci|Test-Path|Get-Item|Resolve-Path|Measure-Object)$/i;
+const START = String.raw`(?:[a-zA-Z]:[\\/]|\/[a-zA-Z]\/|~[\\/]|\$HOME[\\/]|\$env:USERPROFILE[\\/]?|%USERPROFILE%[\\/]?)`;
+const pathRe = () => new RegExp(String.raw`"(${START}[^"]*)"|'(${START}[^']*)'|(?:^|[\s=(>])(${START}[^\s"'|;&<>)]*)`, 'g');
+const redirRe = () => new RegExp(String.raw`\d?>{1,2}\s*(?:"(${START}[^"]*)"|'(${START}[^']*)'|(${START}[^\s"'|;&<>)]*))`, 'g');
+
+function segments(s) {
+  const out = []; let cur = '', q = '';
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (q) { if (ch === q) q = ''; cur += ch; continue; }
+    if (ch === '"' || ch === "'") { q = ch; cur += ch; continue; }
+    if (ch === ';' || ch === '\n' || (ch === '|' && s[i + 1] !== '|') || ((ch === '&' || ch === '|') && s[i + 1] === ch)) {
+      out.push(cur); cur = ''; if (s[i + 1] === ch) i++; continue;
+    }
+    cur += ch;
   }
+  out.push(cur);
+  return out.map(x => x.trim()).filter(Boolean);
+}
+function checkPath(raw, seg) {
+  if (/^\/dev\//.test(raw)) return;
+  const abs = norm(raw);
+  if (inside(abs, claudeHome)) deny('writes to ~/.claude are not allowed', seg);
+  if (!writeAllowed(abs) && !isReadOnlyTool(abs)) deny(`path outside allowed folders: ${abs}`, seg);
+}
+for (const seg of segments(cmd)) {
+  if (!WRITE.test(seg)) continue;
+  for (const m of seg.matchAll(redirRe())) checkPath(m[1] || m[2] || m[3], seg);
+  const words = seg.split(/\s+/);
+  const first = words[0].replace(/^.*[\\/]/, '');
+  const readOnly = READER.test(first) ||
+    (first === 'sed' && !/\s-[a-z]*i/.test(seg)) ||
+    (first === 'find' && !/\s-(delete|exec|execdir|ok|fprint)\b/.test(seg)) ||
+    (first === 'git' && /^git\s+(-C\s+\S+\s+)?(status|diff|log|show|ls-files|rev-parse|branch\s*$)\b/.test(seg));
+  if (readOnly) continue;
+  // mkdir -p on folders that already exist changes nothing.
+  if (/^(mkdir|md)$/i.test(first)) {
+    const ps = [...seg.matchAll(pathRe())].map(m => norm(m[1] || m[2] || m[3]));
+    if (ps.every(p => fs.existsSync(p))) continue;
+  }
+  for (const m of seg.matchAll(pathRe())) checkPath(m[1] || m[2] || m[3], seg);
 }
 
 // Program paths (node.exe, the plugin's own scripts) may appear in a command that

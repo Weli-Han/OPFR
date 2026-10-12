@@ -68,6 +68,14 @@ const cases = [
   [true, 'Bash', sh('cd /d/Programs && touch x'), 'cd outside (git-bash path)'],
   [false, 'Bash', sh(`cd ${WT} && touch x`), 'cd into worktree'],
   [false, 'Bash', sh(`"${process.execPath}" build.js > out.txt`), 'absolute exe path'],
+  [false, 'Bash', sh(`cd ${WT} && cat ${path.join(P, '.opfr', 'briefs', 'T1.md')}; npm test --silent`), 'cd worktree then read own brief'],
+  [false, 'Bash', sh(`cat "${path.join(P, '.opfr', 'SPEC.md')}" | head -20`), 'read SPEC via cat'],
+  [false, 'Bash', sh(`mkdir -p ${path.join(P, '.opfr', 'results')} && ls ${path.join(P, '.opfr', 'results')}`), 'mkdir -p existing results dir'],
+  [false, 'Bash', sh(`git -C ${P} log --oneline -3`), 'git log on project'],
+  [true, 'Bash', sh(`cat ${path.join(P, 'a.txt')} > ${path.join(P, 'b.txt')}`), 'reader redirect into main tree'],
+  [true, 'Bash', sh(`cp "x; cat " ${path.join(P, 'b.txt')}`), 'quoted separator does not hide cp target'],
+  [true, 'Bash', sh(`sed -i s/a/b/ ${path.join(P, 'a.txt')}`), 'sed -i in main tree'],
+  [true, 'Bash', sh(`find ${P} -name x -delete`), 'find -delete in main tree'],
 ];
 const permCases = [
   [{ install: true }, false, 'Bash', sh('npm install lodash'), 'install approved'],
