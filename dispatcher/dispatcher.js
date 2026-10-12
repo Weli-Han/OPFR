@@ -292,7 +292,33 @@ function finish() {
   M.stage = 'finished'; M.finishedAt = iso(); touch(); save(true);
   fs.writeFileSync(path.join(O, 'DONE'), iso());
   ev('finished', { usage: M.usage });
+  const n = s => tasks().filter(t => t.status === s).length, bad = n('unresolved');
+  notify(`OPFR: ${path.basename(PROJECT)} finished`, `${n('done')} tasks done${bad ? `, ${bad} unresolved` : ''}. Open REPORT.md.`);
   note('finished'); process.exit(0);
+}
+
+// Desktop notification for the user who comes back. Logged as an event always;
+// the popup is skipped with OPFR_NOTIFY=0 or meta.notify=false. Errors are ignored.
+function notify(title, body) {
+  ev('notify', { title, body });
+  if (process.env.OPFR_NOTIFY === '0' || M.notify === false) return;
+  const xml = s => s.replace(/[<>&"']/g, ch => `&#${ch.charCodeAt(0)};`);
+  const run = (cmd, args) => { try { spawn(cmd, args, { detached: true, stdio: 'ignore', windowsHide: true }).on('error', () => {}).unref(); } catch {} };
+  if (process.platform === 'win32') {
+    const report = 'file:///' + path.join(PROJECT, 'REPORT.md').replace(/\\/g, '/');
+    const toast = `<toast activationType="protocol" launch="${xml(encodeURI(report))}"><visual><binding template="ToastGeneric"><text>${xml(title)}</text><text>${xml(body)}</text></binding></visual></toast>`;
+    const ps = [
+      '[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null',
+      '[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] > $null',
+      `$x = New-Object Windows.Data.Xml.Dom.XmlDocument; $x.LoadXml('${toast.replace(/'/g, "''")}')`,
+      "$app = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe'",
+      '[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($app).Show([Windows.UI.Notifications.ToastNotification]::new($x))',
+    ].join('\n');
+    run('powershell.exe', ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-EncodedCommand', Buffer.from(ps, 'utf16le').toString('base64')]);
+  } else if (process.platform === 'darwin') {
+    const q = s => JSON.stringify(s);
+    run('osascript', ['-e', `display notification ${q(body)} with title ${q(title)}`]);
+  } else run('notify-send', [title, body]);
 }
 
 // ---- deadline ----------------------------------------------------------------
@@ -395,7 +421,7 @@ function taskPrompt(t, wt) {
     `Intake: ${M.intakeClosed ? 'CLOSED: never ask questions, decide and log in decisions' : 'open: one question allowed via status "question" only if the answer changes the result a lot'}.`,
   ];
   if (M.verifyCmd) lines.push(`Check command: ${M.verifyCmd}`);
-  if (t.change) lines.push(`Plan change ${t.change}: ${M.mainBranch} already holds earlier work on this part. Edit that code to match the updated spec; keep what still fits, do not rebuild from scratch.`);
+  if (t.change) lines.push(`Plan change ${t.change}: ${M.mainBranch} already holds earlier work on this part. Edit that code to match the updated spec; keep what still fits, do not rebuild from scratch. Tests first: when the project has tests, change or add them to the new behavior and see them fail, then change the code until they pass.`);
   if (t.skills.length) lines.push('Read only these library skills first: ' + t.skills.map(s => path.join(PLUGIN, 'library', 'skills', s, 'SKILL.md')).join(', '));
   if (t.bug) lines.push('Bug: ' + JSON.stringify(t.bug));
   if (t.depNote) lines.push(t.depNote);

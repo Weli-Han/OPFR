@@ -50,6 +50,23 @@ function norm(p) {
   return path.resolve(input.cwd || process.cwd(), s);
 }
 
+// Linter/formatter configs: a worker must fix the code, not loosen the rules. Editing an
+// existing config is denied; creating a new one is allowed. permissions.json allowConfigEdit
+// lifts it. List after the config-protection hook of everything-claude-code (ECC, MIT).
+const LINT_CFG = [
+  /^\.(eslint|prettier|stylelint|markdownlint|commitlint|oxlint)rc(\.[\w-]+)*$/i,
+  /^(eslint|prettier|stylelint|commitlint|oxlint)\.config(\.[\w-]+)*\.[cm]?[jt]s$/i,
+  /^\.?biome\.jsonc?$/i, /^\.?ruff\.toml$/i, /^\.shellcheckrc$/i,
+  /^\.markdownlint-cli2(\.[\w-]+)*$/i,
+  /^\.(eslint|prettier|stylelint|markdownlint)ignore$/i,
+];
+const CFG_WHY = 'editing an existing linter/formatter config; fix the code instead (if the rule itself is wrong, say so in your result)';
+function lockedCfg(raw) {
+  if (!c.taskId || P.allowConfigEdit || !raw) return false;
+  const abs = norm(raw);
+  return LINT_CFG.some(re => re.test(path.basename(abs))) && fs.existsSync(abs);
+}
+
 function writeAllowed(abs) {
   if (resultFile && path.resolve(abs).toLowerCase() === resultFile.toLowerCase()) return true;
   return roots.some(r => inside(abs, r));
@@ -65,6 +82,7 @@ if (fileTools[tool]) {
   if (SECRET.test(abs)) deny('secret file path', abs);
   if (inside(abs, claudeHome)) deny('writes to ~/.claude are not allowed', abs);
   if (!writeAllowed(abs)) deny(`write outside allowed folders (${roots.join(', ')})`, abs);
+  if (lockedCfg(abs)) deny(CFG_WHY, abs);
   process.exit(0);
 }
 if (readTools[tool]) {
@@ -159,9 +177,11 @@ function checkPath(raw, seg) {
   if (inside(abs, claudeHome)) deny('writes to ~/.claude are not allowed', seg);
   if (!writeAllowed(abs) && !isReadOnlyTool(abs)) deny(`path outside allowed folders: ${abs}`, seg);
 }
+const unq = s => String(s || '').replace(/^["']|["']$/g, '');
 for (const seg of segments(cmd)) {
   if (!WRITE.test(seg)) continue;
   for (const m of seg.matchAll(redirRe())) checkPath(m[1] || m[2] || m[3], seg);
+  for (const m of seg.matchAll(/\d?>{1,2}\s*("[^"]+"|'[^']+'|[^\s"'|;&<>)]+)/g)) if (lockedCfg(unq(m[1]))) deny(CFG_WHY, seg);
   const words = seg.split(/\s+/);
   const first = words[0].replace(/^.*[\\/]/, '');
   const readOnly = READER.test(first) ||
@@ -169,6 +189,10 @@ for (const seg of segments(cmd)) {
     (first === 'find' && !/\s-(delete|exec|execdir|ok|fprint)\b/.test(seg)) ||
     (first === 'git' && /^git\s+(-C\s+\S+\s+)?(status|diff|log|show|ls-files|rev-parse|branch\s*$)\b/.test(seg));
   if (readOnly) continue;
+  // Copy/move only write their last argument; other writers (sed -i, tee, rm, Set-Content...) any of them.
+  const args = words.slice(1).filter(w => !/^-/.test(w)).map(unq);
+  const targets = /^(cp|mv|copy|move|xcopy|robocopy|Copy-Item|Move-Item|cpi|mi)$/i.test(first) ? args.slice(-1) : args;
+  for (const a of targets) if (lockedCfg(a)) deny(CFG_WHY, seg);
   // mkdir -p on folders that already exist changes nothing.
   if (/^(mkdir|md)$/i.test(first)) {
     const ps = [...seg.matchAll(pathRe())].map(m => norm(m[1] || m[2] || m[3]));

@@ -8,6 +8,7 @@ Keys in P/.opfr/permissions.json:
 - systemInstall: global installs (npm -g, winget, choco). Rarely needed; avoid.
 - push / publish / deploy / ssh: outward actions. Default false. OPFR never needs them to finish locally; enable only if the user explicitly wants it.
 - allowCmd / denyCmd: extra regex lists for special cases.
+- allowConfigEdit: let workers edit existing linter/formatter configs (.eslintrc*, biome.json, ruff.toml...). Default false: workers fix the code, not the rules. Do not ask; set it only if the task is about those configs.
 Always true without asking: reading files, writing inside P and worker worktrees, running local builds and tests.
 Always denied, whatever the answer: writes outside P, ~/.claude, secret files (.ssh, credentials), force push, pipe-to-shell downloads, system settings, nested claude sessions.
 If the task needs a secret (API key, token): do not ask for its value. Ask the user to put it in P/.env before leaving, and tell workers to read it from the environment.

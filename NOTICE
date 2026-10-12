@@ -13,6 +13,9 @@ in library/SOURCES.tsv.
 
 3. everything-claude-code (ECC) by affaan-m (MIT) - licenses/ecc-MIT.txt
    89 library entries under library/. Taken only from the original repository.
+   The linter/formatter config list in hooks/guard.js follows ECC's
+   scripts/hooks/config-protection.js (rewritten; worker-only, permission switch added).
+   The test-first rules for fix and change tasks follow ECC's orchestration skills.
 
 4. Anthropic claude-plugins-official (Apache-2.0) - licenses/claude-plugins-official-Apache-2.0.txt
    23 library entries under library/.

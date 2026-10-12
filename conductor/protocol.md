@@ -40,6 +40,7 @@ Use `/opfr-change` when the user changes the plan after a part was submitted. Fo
 - reopens them (state open, round 0, a new epoch) and adds the change tasks;
 - runs their verify rounds again (at least one, even without change tasks).
 Other parts keep running. Work already merged on main stays: change tasks edit it, so their briefs say what exists and what to change.
+The dispatcher tells change tasks to work tests first: update the tests to the new behavior, see them fail, then change the code.
 A new part name in `parts` (or in a task's `part`) creates that part.
 If security, final verify or the report is queued or running, it is cancelled and runs again after the changed parts.
 After the finish, a change reopens the run: `opfr change` removes DONE, then `opfr start P` restarts the dispatcher.

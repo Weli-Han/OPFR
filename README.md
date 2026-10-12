@@ -68,6 +68,9 @@ it has work to do.
 Lifecycle per part: build tasks, then verify round 1, then fixes for each bug, then verify round 2
 (at most 2 rounds). After all parts: security review, final end-to-end verification, and the report.
 A failed task retries once on the next model rung. After that it is `UNRESOLVED` and listed in the report.
+Fix tasks write a failing regression test first; change tasks update the tests to the new behavior first.
+When the run finishes you get a desktop notification (Windows toast, click opens `REPORT.md`; macOS and
+Linux too). `OPFR_NOTIFY=0` turns it off.
 After the intake closes, nobody asks you questions: workers choose defaults and log them in `DECISIONS.md`.
 
 ## Model routing
@@ -100,7 +103,9 @@ Escalation ladder: haiku high, haiku xhigh, sonnet medium, sonnet high, sonnet x
   - writes outside the worktree;
   - `~/.claude` and secret files;
   - force push, recursive deletes of root folders, and pipe-to-shell downloads;
-  - system and registry changes, and nested `claude -p`.
+  - system and registry changes, and nested `claude -p`;
+  - edits to existing linter/formatter configs (`.eslintrc*`, `biome.json`, `ruff.toml`, ...): workers fix
+    the code, not the rules. New configs are fine; `allowConfigEdit` in permissions.json lifts it.
 - Install, network, docker, push, publish, deploy, and ssh each need your yes in the permissions question (`.opfr/permissions.json`).
 - OPFR never enters credentials. If a task needs a key, you put it in `<project>/.env` yourself.
 - Every denied action is listed in `.opfr/BLOCKED.md` and in the report.

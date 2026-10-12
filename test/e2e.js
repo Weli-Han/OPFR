@@ -10,7 +10,7 @@ const D = path.resolve(__dirname, '..', 'dispatcher');
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opfr-e2e-'));
 const opfr = (...a) => execFileSync(process.execPath, [path.join(D, 'opfr.js'), ...a], { encoding: 'utf8' });
 const t = (id, extra = {}) => ({ id, title: id, brief: 'brief ' + id, tier: 'normal', ...extra });
-const env = { ...process.env, OPFR_CLAUDE: process.execPath, OPFR_CLAUDE_PREFIX: JSON.stringify([path.join(__dirname, 'mock-claude.js')]) };
+const env = { ...process.env, OPFR_NOTIFY: '0', OPFR_CLAUDE: process.execPath, OPFR_CLAUDE_PREFIX: JSON.stringify([path.join(__dirname, 'mock-claude.js')]) };
 const dispatch = p => spawn(process.execPath, [path.join(D, 'dispatcher.js'), p], { env, stdio: 'inherit' });
 const exited = c => new Promise(r => c.on('exit', r));
 const rd = (p, f) => { try { return fs.readFileSync(path.join(p, '.opfr', f), 'utf8'); } catch { return ''; } };
@@ -55,6 +55,7 @@ async function demo() {
   if (office) setTimeout(() => office.kill(), hold);
   return [
     ['finished', b.meta.stage === 'finished' && has(P, '.opfr/DONE')],
+    ['finish notification', /"type":"notify","title":"OPFR: demo finished","body":"\d+ tasks done, 1 unresolved/.test(rd(P, 'events.jsonl'))],
     ['A1 merged', has(P, 'a1.txt')],
     ['conflict integrated', st['I-A2'] === 'done' || st['I-B1'] === 'done'],
     ['shared merged', has(P, 'shared.txt') && /A2[\s\S]*B1/.test(fs.readFileSync(path.join(P, 'shared.txt'), 'utf8'))],
@@ -113,7 +114,7 @@ async function change() {
     ['change during security resets final stage', st['SEC-2'] === 'cancelled' && st.YC2 === 'done' && /green/.test(y) && st['V1-Y-2'] === 'done' && st['SEC-3'] === 'done' && st['FINAL-2'] === 'done'],
     ['change: finished again with new report', finished && st['REPORT-2'] === 'done' && /Plan changes[\s\S]*c3/.test(rd(P, 'summary.md'))],
     ['summary has exact task totals', (m => !!m && +m[1] === Object.keys(b.tasks).length - 1)(/Totals \(exact[^)]*\): (\d+) tasks before the report/.exec(rd(P, 'summary.md')))],
-    ['change logged',/\[change c1\] parts Y[\s\S]*\[change c2\] parts X[\s\S]*\[change c3\] parts Y.*security stage reset/.test(dec)],
+    ['change logged', /\[change c1\] parts Y[\s\S]*\[change c2\] parts X[\s\S]*\[change c3\] parts Y.*security stage reset/.test(dec)],
     ['change: start refuses finished run', startRefused],
     ['change: no worktrees left', noWorktrees(P)],
   ];

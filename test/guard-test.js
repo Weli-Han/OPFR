@@ -14,6 +14,10 @@ fs.mkdirSync(WT, { recursive: true });
 fs.writeFileSync(path.join(P, '.opfr', 'board.json'), '{}');
 const setPerms = p => fs.writeFileSync(path.join(P, '.opfr', 'permissions.json'), JSON.stringify({ install: false, net: false, docker: false, push: false, publish: false, deploy: false, ssh: false, systemInstall: false, allowCmd: [], denyCmd: [], ...p }));
 setPerms({});
+// Existing linter configs: workers may not edit them (new ones are fine).
+fs.writeFileSync(path.join(WT, '.eslintrc.json'), '{}');
+fs.writeFileSync(path.join(WT, 'biome.json'), '{}');
+fs.writeFileSync(path.join(P, '.prettierrc'), '{}');
 
 const home = os.homedir();
 const worker = { OPFR_PROJECT: P, OPFR_TASK_ID: 'T1', OPFR_WORKTREE: WT };
@@ -76,6 +80,16 @@ const cases = [
   [true, 'Bash', sh(`cp "x; cat " ${path.join(P, 'b.txt')}`), 'quoted separator does not hide cp target'],
   [true, 'Bash', sh(`sed -i s/a/b/ ${path.join(P, 'a.txt')}`), 'sed -i in main tree'],
   [true, 'Bash', sh(`find ${P} -name x -delete`), 'find -delete in main tree'],
+  [true, 'Edit', { file_path: path.join(WT, '.eslintrc.json') }, 'edit existing eslint config'],
+  [true, 'Write', { file_path: path.join(WT, 'biome.json') }, 'overwrite existing biome config'],
+  [false, 'Write', { file_path: path.join(WT, 'eslint.config.mjs') }, 'create new eslint config'],
+  [false, 'Edit', { file_path: path.join(WT, 'tsconfig.json') }, 'tsconfig is not protected'],
+  [true, 'Bash', sh('sed -i s/error/off/ .eslintrc.json'), 'sed -i existing config'],
+  [true, 'Bash', sh('echo {} > biome.json'), 'redirect into existing config'],
+  [true, 'Bash', sh('cp other.json .eslintrc.json'), 'cp over existing config'],
+  [false, 'Bash', sh('cp .eslintrc.json backup.json'), 'cp from config is fine'],
+  [false, 'Bash', sh('cat .eslintrc.json > cfg-copy.txt'), 'read config'],
+  [false, 'Edit', { file_path: path.join(P, '.prettierrc') }, 'conductor may edit configs', { OPFR_PROJECT: P }],
 ];
 const permCases = [
   [{ install: true }, false, 'Bash', sh('npm install lodash'), 'install approved'],
