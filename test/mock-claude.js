@@ -35,6 +35,16 @@ else if (id === 'RL') {
   if (calls === 1) { process.stdout.write(JSON.stringify({ type: 'result', is_error: true, result: 'Claude AI usage limit reached|' + Math.floor(Date.now() / 1000 + 2) })); process.exit(1); }
   write('rl.txt', 'x\n'); result({ status: 'done', summary: 'after limit' });
 }
+// Plan-change scenario (project "change").
+else if (id === 'X1' || id === 'Y1') { spawnSync(process.execPath, ['-e', 'setTimeout(()=>{},6000)']); write(id.toLowerCase() + '.txt', id.toLowerCase() + '\n'); result({ status: 'done', summary: id }); }
+else if (id === 'Y1-2') { write('y.txt', 'blue\n'); result({ status: 'done', summary: 'blue' }); }
+else if (id === 'YC2') { fs.appendFileSync(path.join(wt, 'y.txt'), 'green\n'); result({ status: 'done', summary: 'green' }); }
+else if (id === 'XC1') {
+  // A change task edits what is already merged, and its prompt says so.
+  if (!fs.existsSync(path.join(wt, 'x1.txt')) || !/Plan change c2/.test(prompt)) result({ status: 'failed', summary: 'no merged x1.txt or no change note' });
+  else { fs.appendFileSync(path.join(wt, 'x1.txt'), 'changed\n'); result({ status: 'done', summary: 'x changed' }); }
+}
+else if (id === 'SEC-2') { spawnSync(process.execPath, ['-e', 'setTimeout(()=>{},6000)']); result({ status: 'done', summary: 'clean', bugs: [] }); }
 else if (id.startsWith('I-')) {
   git(['merge', 'main']);
   write('shared.txt', 'from A2\nfrom B1\n');

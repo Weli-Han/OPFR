@@ -32,7 +32,7 @@ Interview part by part with AskUserQuestion (max 4 questions per call; each ques
 When every part is submitted:
 1. Set meta: `opfr op P '{"op":"meta","set":{"verifyCmd":"...","deadline":"<ISO or null>","maxParallel":3}}'`. verifyCmd = one quiet command that proves the build is healthy (for example `npm test --silent`), or omit it.
 2. Close intake: `opfr op P '{"op":"close"}'`.
-3. Tell the user, in 4 lines max: project path, what runs now, rough duration, that REPORT.md will be in P, and that `/opfr-status` shows progress. They can leave.
+3. Tell the user, in 4 lines max: project path, what runs now, rough duration, that REPORT.md will be in P, and that `/opfr-status` shows progress. They can leave. `/opfr-change` changes the plan later without a restart.
 4. Stop. Do not poll. Do not do worker tasks yourself.
 
 ## Rules

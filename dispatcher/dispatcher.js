@@ -103,7 +103,7 @@ function addTask(spec, part) {
     tier: spec.tier || 'normal', small: !!spec.small, risky: !!spec.risky, model: spec.model, effort: spec.effort,
     deps: spec.deps || [], area: [].concat(spec.area || []), skills: spec.skills || [], mcp: spec.mcp || [],
     verify: spec.verify !== false, status: 'todo', attempts: 0, created: iso(), wtOf: spec.wtOf, bug: spec.bug,
-    answers: [], noEffort: false,
+    answers: [], noEffort: false, epoch: (B.parts[spec.part || part] || {}).epoch || 0, change: spec.change,
   };
   t.rung = t.model && !route.LADDER.some(([m]) => m === t.model) ? null : route.startRung(t);
   const brief = path.join(O, 'briefs', id + '.md');
@@ -114,6 +114,8 @@ function addTask(spec, part) {
   ev('task-add', { id, part: t.part, kind: t.kind, title: t.title, tier: t.tier });
   return t;
 }
+// First free id among base, base-2, base-3…: re-runs after a plan change get new ids.
+function freshId(base) { let id = base, n = 1; while (B.tasks[id]) id = `${base}-${++n}`; return id; }
 function roleFor(kind) { return ({ verify: 'verify', fix: 'fix', integrate: 'integrate', security: 'security', report: 'report', research: 'research' })[kind] || 'build'; }
 const tasks = () => Object.values(B.tasks);
 const running = () => tasks().filter(t => t.status === 'running');
@@ -155,6 +157,7 @@ function applyOp(op) {
       break;
     }
     case 'cancel': { const t = B.tasks[op.id]; if (t && !TERMINAL.has(t.status) && t.status !== 'running') { t.status = 'cancelled'; ev('cancel', { id: t.id }); } break; }
+    case 'change': applyChange(op); break;
     case 'close': closeIntake('conductor'); break;
     default: note('unknown op ' + op.op);
   }
@@ -182,6 +185,58 @@ function autoAnswer(t) {
   t.status = 'ready'; delete t.qid;
 }
 
+// ---- plan changes mid-run ------------------------------------------------------
+// {"op":"change","parts":["B"],"note":"...","tasks":[...]}: drop the open work of the listed
+// parts (queued tasks cancelled, running workers killed, worktrees discarded), reopen them,
+// and add change tasks that edit the merged code on main. The parts then run their verify
+// rounds again. Other parts keep running. A change during the security/final/report stage,
+// or after the finish, sends the run back to the parts stage so those run again afterwards.
+function applyChange(op) {
+  const parts = [...new Set([].concat(op.parts || [], (op.tasks || []).map(s => s.part).filter(Boolean)).map(String))].filter(p => !p.startsWith('_'));
+  if (!parts.length) { note('change without parts ignored'); return; }
+  const log = M.changeLog ||= [];
+  const tag = 'c' + (log.length + 1);
+  // The user asked for this work now; a deadline already inside the report reserve would skip it at once.
+  if (M.deadline && new Date(M.deadline).getTime() - now() <= M.reportReserveMin * 60000) {
+    append('DECISIONS.md', `- [change ${tag}] deadline ${M.deadline} had passed its report reserve; removed so the change can run.`);
+    M.deadline = null;
+  }
+  const drop = tasks().filter(t => parts.includes(t.part) && !TERMINAL.has(t.status));
+  let reset = null;
+  if (M.stage !== 'parts') {
+    reset = M.stage;
+    // Re-run security, final verify and report after the changed parts; fixes already under way finish.
+    drop.push(...tasks().filter(t => t.part === '_final' && ['verify', 'security', 'report'].includes(t.kind) && !TERMINAL.has(t.status)));
+    if (M.stage === 'finished') { try { fs.unlinkSync(path.join(O, 'DONE')); } catch {} delete M.finishedAt; }
+    M.stage = 'parts'; ev('stage', { stage: 'parts', by: tag });
+  }
+  // An integrate task works in the worktree of the task it merges; drop it together with that task.
+  drop.push(...tasks().filter(t => t.wtOf && drop.includes(B.tasks[t.wtOf]) && !drop.includes(t) && !TERMINAL.has(t.status)));
+  const stopped = drop.filter(t => t.status === 'running').map(t => t.id);
+  const dropped = drop.filter(t => t.status !== 'running').map(t => t.id);
+  // Kill every worker first, then remove worktrees: a killed integrate worker may still sit in its base's worktree.
+  for (const t of drop) if (procs.has(t.id)) killTree(procs.get(t.id).pid);
+  for (const t of drop) {
+    const hadWt = ['running', 'integrating'].includes(t.status);
+    Object.assign(t, { status: 'cancelled', cancelledBy: tag, ended: iso() });
+    if (hadWt && !t.wtOf) removeWorktree(t.wt, t.branch);
+    ev('cancel', { id: t.id, by: tag });
+  }
+  for (const name of parts) {
+    const P = B.parts[name] ||= { title: (parts.length === 1 && op.title) || name, round: 0, state: 'open' };
+    Object.assign(P, { final: true, state: 'open', round: 0, epoch: (P.epoch || 0) + 1 });
+    delete P.draft;
+    (P.changes ||= []).push(`${tag}: ${op.note || ''}`);
+  }
+  // Change task ids that already exist get a fresh suffix; deps inside the batch follow the rename.
+  const ids = {};
+  for (const s of op.tasks || []) if (s.id) ids[s.id] = freshId(String(s.id).replace(/[^\w.-]/g, '_'));
+  const added = (op.tasks || []).map(s => addTask({ ...s, id: ids[s.id], deps: (s.deps || []).map(d => ids[d] || d), change: tag }, s.part || parts[0]).id);
+  log.push({ tag, t: iso(), parts, note: op.note || '', stopped, dropped, added, reset });
+  append('DECISIONS.md', `- [change ${tag}] parts ${parts.join(', ')}: ${op.note || '(no note)'}. Stopped: ${stopped.join(', ') || '-'}; dropped: ${dropped.join(', ') || '-'}; new tasks: ${added.join(', ') || '-'}${reset ? `; ${reset === 'finished' ? 'finished run reopened' : reset + ' stage reset'}, security/final/report run again after the parts` : ''}.`);
+  ev('change', { tag, parts, stopped, dropped, added, reset });
+}
+
 // ---- part lifecycle: verify rounds -------------------------------------------
 function partTasks(name) { return tasks().filter(t => t.part === name); }
 function advanceParts() {
@@ -190,13 +245,15 @@ function advanceParts() {
     if (!P.final || P.state === 'done') continue;
     const ts = partTasks(name);
     if (!ts.length || ts.some(t => !TERMINAL.has(t.status))) continue;
-    const builds = ts.filter(t => ['build', 'research'].includes(t.kind) && t.verify);
-    const lastVerify = ts.filter(t => t.kind === 'verify').pop();
-    const fixesSince = lastVerify ? ts.filter(t => t.kind === 'fix' && t.fromVerify === lastVerify.id) : [];
-    const needRound = !lastVerify ? builds.some(t => t.status === 'done') : fixesSince.some(t => t.status === 'done');
+    // Only the current epoch counts: a plan change starts a new one, so the part is verified again.
+    const ep = P.epoch || 0, cur = ts.filter(t => (t.epoch || 0) === ep);
+    const builds = cur.filter(t => ['build', 'research'].includes(t.kind) && t.verify);
+    const lastVerify = cur.filter(t => t.kind === 'verify').pop();
+    const fixesSince = lastVerify ? cur.filter(t => t.kind === 'fix' && t.fromVerify === lastVerify.id) : [];
+    const needRound = !lastVerify ? ep > 0 || builds.some(t => t.status === 'done') : fixesSince.some(t => t.status === 'done');
     if (needRound && P.round < M.verifyRounds) {
       P.round++; P.state = 'verifying';
-      addTask({ id: `V${P.round}-${name}`, kind: 'verify', tier: 'normal', title: `Verify part ${name} (round ${P.round})`, brief: verifyBrief(name, P), mcp: M.verifyMcp || [] }, name);
+      addTask({ id: freshId(`V${P.round}-${name}`), kind: 'verify', tier: 'normal', title: `Verify part ${name} (round ${P.round})`, brief: verifyBrief(name, P), mcp: M.verifyMcp || [] }, name);
     } else { P.state = 'done'; ev('part-done', { part: name }); }
     touch();
   }
@@ -205,8 +262,9 @@ function advanceParts() {
 function verifyBrief(name, P) {
   const done = partTasks(name).filter(t => t.status === 'done' && t.kind !== 'verify').map(t => `- ${t.id} ${t.title}: ${t.summary || ''}`).join('\n');
   const spec = path.join(O, 'spec', name + '.md');
+  const changes = P.changes ? `The plan for this part changed mid-run (${P.changes.join('; ')}). Check the changed behavior and that nothing else broke.\n` : '';
   return `Verify part ${name} "${P.title}" against its spec ${fs.existsSync(spec) ? spec : path.join(O, 'SPEC.md')}.\n` +
-    `Completed work:\n${done}\nRun the project checks${M.verifyCmd ? ` (\`${M.verifyCmd}\`)` : ''}, exercise the real behavior, add missing tests.\n` +
+    `Completed work:\n${done}\n${changes}Run the project checks${M.verifyCmd ? ` (\`${M.verifyCmd}\`)` : ''}, exercise the real behavior, add missing tests.\n` +
     `Report each defect in result "bugs": [{"title","detail","area","tier":"simple|normal|complex","repro"}]. Empty list if clean.`;
 }
 
@@ -218,15 +276,15 @@ function advanceGlobal() {
   if (open || !partsDone) return;
   const next = { parts: M.security ? 'security' : 'final', security: 'final', final: 'report' }[M.stage];
   M.stage = next; ev('stage', { stage: next }); touch();
-  if (next === 'security') addTask({ id: 'SEC', kind: 'security', tier: 'complex', risky: true, model: M.critical ? 'opus' : undefined, effort: M.critical ? 'high' : undefined, title: 'Security review of whole project', brief: 'Review the whole project for security defects. Use the security-hits log at ' + path.join(O, 'security-hits.jsonl') + ' as hints. Report bugs[] like verify.' }, '_final');
-  if (next === 'final') addTask({ id: 'FINAL', kind: 'verify', tier: 'complex', title: 'Final end-to-end verification', brief: `Verify the whole result against ${path.join(O, 'SPEC.md')}: build, run, use it as the user would. Report bugs[].`, mcp: M.verifyMcp || [] }, '_final');
+  if (next === 'security') addTask({ id: freshId('SEC'), kind: 'security', tier: 'complex', risky: true, model: M.critical ? 'opus' : undefined, effort: M.critical ? 'high' : undefined, title: 'Security review of whole project', brief: 'Review the whole project for security defects. Use the security-hits log at ' + path.join(O, 'security-hits.jsonl') + ' as hints. Report bugs[] like verify.' }, '_final');
+  if (next === 'final') addTask({ id: freshId('FINAL'), kind: 'verify', tier: 'complex', title: 'Final end-to-end verification', brief: `Verify the whole result against ${path.join(O, 'SPEC.md')}: build, run, use it as the user would. Report bugs[].`, mcp: M.verifyMcp || [] }, '_final');
   if (next === 'report') startReport();
 }
 
 function startReport(forced) {
   writeSummary();
-  addTask({ id: forced ? 'REPORT-DEADLINE' : 'REPORT', kind: 'report', model: M.conductorModel || 'opus', effort: M.conductorEffort || 'high', verify: false, title: 'Write REPORT.md',
-    brief: `Write REPORT.md in the work dir root from ${path.join(O, 'summary.md')} and ${path.join(O, 'SPEC.md')}. Be honest: what works, what does not, UNRESOLVED items, decisions taken without the user, blocked actions, token usage, how to run it. Copy DECISIONS/BUGS/BLOCKED files from ${O} into docs/opfr/ if they exist.` }, '_final');
+  addTask({ id: freshId(forced ? 'REPORT-DEADLINE' : 'REPORT'), kind: 'report', model: M.conductorModel || 'opus', effort: M.conductorEffort || 'high', verify: false, title: 'Write REPORT.md',
+    brief: `Write REPORT.md in the work dir root from ${path.join(O, 'summary.md')} and ${path.join(O, 'SPEC.md')}. Be honest: what works, what does not, UNRESOLVED items, decisions taken without the user, plan changes made mid-run, blocked actions, token usage, how to run it. Copy DECISIONS/BUGS/BLOCKED files from ${O} into docs/opfr/ if they exist.` }, '_final');
   M.stage = 'report'; touch();
 }
 
@@ -337,6 +395,7 @@ function taskPrompt(t, wt) {
     `Intake: ${M.intakeClosed ? 'CLOSED: never ask questions, decide and log in decisions' : 'open: one question allowed via status "question" only if the answer changes the result a lot'}.`,
   ];
   if (M.verifyCmd) lines.push(`Check command: ${M.verifyCmd}`);
+  if (t.change) lines.push(`Plan change ${t.change}: ${M.mainBranch} already holds earlier work on this part. Edit that code to match the updated spec; keep what still fits, do not rebuild from scratch.`);
   if (t.skills.length) lines.push('Read only these library skills first: ' + t.skills.map(s => path.join(PLUGIN, 'library', 'skills', s, 'SKILL.md')).join(', '));
   if (t.bug) lines.push('Bug: ' + JSON.stringify(t.bug));
   if (t.depNote) lines.push(t.depNote);
@@ -391,6 +450,12 @@ function onExit(t, code, out, err, model, effort) {
   let j = null;
   try { j = JSON.parse(out); } catch { const m = /\{[\s\S]*"type"\s*:\s*"result"[\s\S]*\}\s*$/.exec(out); if (m) try { j = JSON.parse(m[0]); } catch {} }
   if (j) recordUsage(t, j, model, effort);
+  if (t.status === 'cancelled') {
+    // Killed by a plan change: drop whatever it did; the worktree may only now be free to remove.
+    const base = t.wtOf ? B.tasks[t.wtOf] : t;
+    if (base && base.status === 'cancelled' && base.wt) removeWorktree(base.wt, base.branch);
+    note(`${t.id} stopped by plan change ${t.cancelledBy}`); touch(); return;
+  }
   const text = `${j ? j.result || '' : ''}\n${j && j.api_error_status ? 'status ' + j.api_error_status : ''}\n${err}\n${j ? '' : out}`;
   t.ended = iso();
 
@@ -507,7 +572,8 @@ function writeStatus() {
     M.pausedUntil ? `PAUSED until ${new Date(M.pausedUntil).toLocaleString()}${M.authError ? ' (CLI not logged in)' : ''}` : 'active',
     `running: ${run.map(t => `${t.id}[${t.lastModel}/${t.lastEffort}]`).join(' ') || '-'}`,
     `questions waiting: ${q.map(t => t.qid).join(' ') || '-'}`,
-    `parts: ${Object.entries(B.parts).map(([k, P]) => `${k}:${P.state}${P.final ? '' : '(open)'}`).join(' ') || '-'}`,
+    `parts: ${Object.entries(B.parts).map(([k, P]) => `${k}:${P.state}${P.final ? '' : '(open)'}${P.epoch ? '(changed x' + P.epoch + ')' : ''}`).join(' ') || '-'}`,
+    `changes: ${(M.changeLog || []).map(c => `${c.tag} ${c.parts.join('+')}${c.stopped.length ? ' stopped ' + c.stopped.join(',') : ''}`).join(' | ') || '-'}`,
     `tokens out: ${Object.entries(M.usage).map(([m, u]) => `${m} ${u.out}`).join(', ') || '0'}`,
     '',
     ...tasks().map(t => `${t.status.padEnd(11)} ${t.id.padEnd(14)} ${(t.lastModel || '').padEnd(7)} ${t.title}`),
@@ -523,6 +589,7 @@ function writeSummary() {
     `# OPFR summary ${iso()}`, '', `Started ${M.created}, intake closed ${M.intakeClosedAt || '-'}.`, '',
     '| task | part | kind | status | model/effort | attempts | summary |', '|---|---|---|---|---|---|---|', ...rows, '',
     '## Usage', '| model | runs | input | cache read | cache write | output | usd (API-equivalent) |', '|---|---|---|---|---|---|---|', ...usage, '',
+    '## Plan changes', ...(M.changeLog || []).map(c => `- ${c.tag} ${c.t}: parts ${c.parts.join(', ')}: ${c.note || '-'} (stopped ${c.stopped.join(', ') || '-'}; dropped ${c.dropped.join(', ') || '-'}; new ${c.added.join(', ') || '-'}${c.reset ? '; reran from ' + c.reset : ''})`), (M.changeLog || []).length ? '' : '(none)\n',
     '## Decisions', rd('DECISIONS.md'), '## Bugs and unresolved', rd('BUGS.md'), '## Blocked actions', rd('BLOCKED.md'),
   ].join('\n'));
 }
@@ -545,6 +612,8 @@ function tick() {
   try {
     stopIfAsked();
     processInbox();
+    // Started on a finished run with no change op in the inbox: nothing to do.
+    if (M.stage === 'finished') { note('run already finished'); fs.writeFileSync(path.join(O, 'DONE'), M.finishedAt || iso()); save(true); process.exit(0); }
     checkIdleIntake();
     checkDeadline();
     promote();

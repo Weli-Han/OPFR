@@ -33,7 +33,14 @@ Then log in the headless CLI once (see Requirements).
 /opfr <task in your own words>
 /opfr-status            progress of the current project
 /opfr-resume            continue an interview or restart a stopped run
+/opfr-change <change>   change the plan mid-run or after the finish
 ```
+
+You can change your mind while the run is going. `/opfr-change` updates the spec and redoes only the
+parts the change touches: their queued tasks are cancelled, their running workers stop, and new
+change tasks edit the code that is already merged. Then those parts are verified again. Other parts
+keep running. Security review, final verification and the report run again at the end. After the
+run has finished, a change restarts it for the changed parts only.
 
 To watch the run as a pixel office, run `node dispatcher/opfr.js office <project>` and open
 http://127.0.0.1:7788/. It binds to 127.0.0.1 only. Add `--lan` to open it to private-network
@@ -115,6 +122,7 @@ Escalation ladder: haiku high, haiku xhigh, sonnet medium, sonnet high, sonnet x
 ```
 
 Stop: `node dispatcher/opfr.js stop <project>`. Resume: `/opfr-resume` or `opfr.js start <project>`.
+Change the plan: `/opfr-change`, or `opfr.js change <project> '<json>'` then `opfr.js start <project>`.
 
 Power loss, reboot, sign-out: work stops, progress stays. Merged tasks are kept; tasks that were
 running start again. On Windows the runner puts `opfr-resume.cmd` in your Startup folder (per user,
@@ -127,7 +135,7 @@ Sleep is blocked while a run is active; a closed laptop lid or a shutdown still 
 ## Tests
 
 ```
-node test/e2e.js          full lifecycle with a mock CLI (no tokens)
+node test/e2e.js          full lifecycle and plan changes with a mock CLI (no tokens)
 node test/guard-test.js   guard and security-pattern rules
 node test/autostart-test.js  resume after reboot (temp dirs only)
 ```

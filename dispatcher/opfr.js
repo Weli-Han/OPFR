@@ -2,14 +2,16 @@
 // OPFR helper CLI for the conductor. Commands:
 //   init <slug> --model <id> [--root <dir>]          create project + board, print path
 //   root                                              print the default work root
-//   start <project>                                   start dispatcher outside this session (keeps running)
+//   start <project>                                   start dispatcher outside this session (keeps running);
+//                                                     reopens a finished run when a change op is pending
 //   resume-all [--dry]                                restart every unfinished, unstopped project (run at Windows login)
 //   autostart [auto|off]                              add/remove the login entry (auto: only while a project is unfinished)
 //   stop <project>                                    stop dispatcher and workers (tasks resume on next start)
 //   status <project> [--full]                         compact progress
 //   questions <project>                               open worker questions (JSON lines)
 //   answer <project> <qid> <text...>                  answer a worker question
-//   op <project> <json>                               queue one raw op (meta/part/draft/task/cancel/close)
+//   op <project> <json>                               queue one raw op (meta/part/draft/task/cancel/change/close)
+//   change <project> <json>                           queue a plan change {"parts":[..],"note":"..","tasks":[..]}
 //   ping <project>                                    mark the user as present (delays idle auto-close)
 //   office <project> [--port 7788] [--lan]            live pixel-office view in the background, print URL
 'use strict';
@@ -36,6 +38,7 @@ function workRoot() {
   if (process.platform === 'win32' && fs.existsSync('D:\\')) return 'D:\\opfr-work';
   return path.join(require('os').homedir(), 'opfr-work');
 }
+const pending = p => { try { return fs.readdirSync(path.join(opfr(p), 'inbox')).filter(f => f.endsWith('.json')).length; } catch { return 0; } };
 function git(args, cwd) { return spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true }); }
 function alive(project) {
   try {
@@ -112,6 +115,11 @@ switch (cmd) {
   case 'start': {
     const p = path.resolve(rest[0]);
     if (alive(p)) { console.log('already running pid ' + alive(p)); break; }
+    const done = path.join(opfr(p), 'DONE');
+    if (fs.existsSync(done)) {
+      if (!pending(p)) { console.log('run finished; queue a change first (opfr change)'); break; }
+      fs.unlinkSync(done); // the runner loops until DONE; the dispatcher applies the pending ops
+    }
     console.log(startRunner(p));
     break;
   }
@@ -137,6 +145,7 @@ switch (cmd) {
     const lines = s.split('\n');
     console.log((rest.includes('--full') ? lines : lines.slice(0, 7)).join('\n').trim());
     console.log(`dispatcher: ${alive(p) ? 'running pid ' + alive(p) : fs.existsSync(path.join(opfr(p), 'DONE')) ? 'finished' : 'NOT running'}`);
+    if (pending(p)) console.log(`inbox: ${pending(p)} op file(s) not applied yet${alive(p) ? '' : ' (run opfr start)'}`);
     break;
   }
   case 'questions': {
@@ -156,6 +165,21 @@ switch (cmd) {
   case 'op': {
     const [p, ...json] = rest;
     console.log(queue(p, JSON.parse(json.join(' '))));
+    break;
+  }
+  case 'change': {
+    const [p, ...json] = rest;
+    const o = { ...JSON.parse(json.join(' ')), op: 'change' };
+    o.parts = [].concat(o.parts || []);
+    const errs = [];
+    if (!o.parts.length && !(o.tasks || []).some(t => t.part)) errs.push('parts required');
+    if (!o.note) errs.push('note required (what changed and why)');
+    for (const t of o.tasks || []) if (!t.id || !(t.brief || t.briefFile)) errs.push('each task needs id and brief: ' + JSON.stringify(t).slice(0, 80));
+    if (errs.length) { console.error(errs.join('\n')); process.exit(1); }
+    const done = path.join(opfr(p), 'DONE'), reopened = fs.existsSync(done);
+    if (reopened) fs.unlinkSync(done); // a change reopens a finished run
+    console.log(queue(p, [o]));
+    console.log(alive(p) ? 'dispatcher running: applies the change within seconds' : `dispatcher not running${reopened ? ' (run was finished, now reopened)' : ''}: run opfr start`);
     break;
   }
   case 'root': console.log(workRoot()); break;

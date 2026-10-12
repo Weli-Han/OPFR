@@ -12,7 +12,8 @@
 - `{"op":"draft","part":"B","title":"...","tasks":[...]}`: fallback tasks, used only if intake closes before part B is final.
 - `{"op":"task", ...<task>}`: one extra task.
 - `{"op":"meta","set":{...}}`: verifyCmd, deadline (ISO), maxParallel (default 3), taskTimeoutMin (60), verifyRounds (2), security (true), critical (false: true makes the security review use opus high), verifyMcp (["playwright"] for web UIs), permissionMode ("bypassPermissions" default; "auto" possible).
-- `{"op":"answer","qid":"...","text":"..."}`, `{"op":"cancel","id":"..."}`, `{"op":"close"}`.
+- `{"op":"change","parts":["B"],"note":"...","tasks":[<task>...]}`: change the plan of submitted parts (see Plan changes). `opfr change P '<json>'` checks and queues it.
+- `{"op":"answer","qid":"...","text":"..."}`, `{"op":"cancel","id":"..."}` (not for running tasks), `{"op":"close"}`.
 
 ## Task object
 ```json
@@ -32,6 +33,18 @@
 - skills: names from the library catalog (`${CLAUDE_PLUGIN_ROOT}/library/CATALOG.md`); max 3 per task; only when clearly useful.
 - mcp: "playwright" (browser) or "context7" (library docs). Only when the task needs it.
 - brief: everything the worker needs. Workers never see the chat. 5–25 lines. Include acceptance checks.
+
+## Plan changes
+Use `/opfr-change` when the user changes the plan after a part was submitted. For the listed parts the dispatcher:
+- cancels their queued, ready and waiting tasks, kills their running workers and discards those worktrees;
+- reopens them (state open, round 0, a new epoch) and adds the change tasks;
+- runs their verify rounds again (at least one, even without change tasks).
+Other parts keep running. Work already merged on main stays: change tasks edit it, so their briefs say what exists and what to change.
+A new part name in `parts` (or in a task's `part`) creates that part.
+If security, final verify or the report is queued or running, it is cancelled and runs again after the changed parts.
+After the finish, a change reopens the run: `opfr change` removes DONE, then `opfr start P` restarts the dispatcher.
+Re-runs get new ids (V1-B-2, SEC-2, REPORT-2); a change task id that already exists gets a suffix too.
+Each change is logged in DECISIONS.md, STATUS.md (`changes:`) and summary.md ("Plan changes"), and so reaches the report.
 
 ## Splitting rules
 - One task = one worker session = one coherent change (about 1–6 files). Bigger: split.
