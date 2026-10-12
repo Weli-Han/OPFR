@@ -112,7 +112,8 @@ async function change() {
     ['change task edits merged code', st.XC1 === 'done' && /x1\nchanged/.test(x) && st['V1-X-2'] === 'done' && b.tasks['V1-X-2'].epoch === 1],
     ['change during security resets final stage', st['SEC-2'] === 'cancelled' && st.YC2 === 'done' && /green/.test(y) && st['V1-Y-2'] === 'done' && st['SEC-3'] === 'done' && st['FINAL-2'] === 'done'],
     ['change: finished again with new report', finished && st['REPORT-2'] === 'done' && /Plan changes[\s\S]*c3/.test(rd(P, 'summary.md'))],
-    ['change logged', /\[change c1\] parts Y[\s\S]*\[change c2\] parts X[\s\S]*\[change c3\] parts Y.*security stage reset/.test(dec)],
+    ['summary has exact task totals', (m => !!m && +m[1] === Object.keys(b.tasks).length - 1)(/Totals \(exact[^)]*\): (\d+) tasks before the report/.exec(rd(P, 'summary.md')))],
+    ['change logged',/\[change c1\] parts Y[\s\S]*\[change c2\] parts X[\s\S]*\[change c3\] parts Y.*security stage reset/.test(dec)],
     ['change: start refuses finished run', startRefused],
     ['change: no worktrees left', noWorktrees(P)],
   ];

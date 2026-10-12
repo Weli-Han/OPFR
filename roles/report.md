@@ -10,4 +10,5 @@ Sections:
 6. Blocked actions: what was denied and why it matters.
 7. Cost: token usage per model from the summary.
 8. Next steps: max 5 bullets.
+Take task counts from the "Totals" line in the summary; never count them yourself.
 Never claim something works without evidence from the summary or your own run. Run the project once to confirm the "how to run" section.

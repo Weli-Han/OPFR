@@ -584,9 +584,11 @@ function writeStatus() {
 function writeSummary() {
   const rd = f => { try { return fs.readFileSync(path.join(O, f), 'utf8'); } catch { return '(none)\n'; } };
   const rows = tasks().map(t => `| ${t.id} | ${t.part} | ${t.kind} | ${t.status} | ${t.lastModel || '-'}/${t.lastEffort || '-'} | ${t.attempts} | ${(t.summary || t.lastError || '').replace(/\|/g, '/').replace(/\s+/g, ' ').slice(0, 160)} |`);
+  const all = tasks(), by = k => Object.entries(all.reduce((m, t) => (m[t[k]] = (m[t[k]] || 0) + 1, m), {})).map(([a, n]) => `${a} ${n}`).join(', ');
   const usage = Object.entries(M.usage).map(([m, u]) => `| ${m} | ${u.runs} | ${u.in} | ${u.cacheRead} | ${u.cacheWrite} | ${u.out} | ${u.usd.toFixed(2)} |`);
   fs.writeFileSync(path.join(O, 'summary.md'), [
     `# OPFR summary ${iso()}`, '', `Started ${M.created}, intake closed ${M.intakeClosedAt || '-'}.`, '',
+    `Totals (exact; quote these, do not count rows): ${all.length} tasks before the report task, so ${all.length + 1} with it. By status: ${by('status')}. By kind: ${by('kind')}.`, '',
     '| task | part | kind | status | model/effort | attempts | summary |', '|---|---|---|---|---|---|---|', ...rows, '',
     '## Usage', '| model | runs | input | cache read | cache write | output | usd (API-equivalent) |', '|---|---|---|---|---|---|---|', ...usage, '',
     '## Plan changes', ...(M.changeLog || []).map(c => `- ${c.tag} ${c.t}: parts ${c.parts.join(', ')}: ${c.note || '-'} (stopped ${c.stopped.join(', ') || '-'}; dropped ${c.dropped.join(', ') || '-'}; new ${c.added.join(', ') || '-'}${c.reset ? '; reran from ' + c.reset : ''})`), (M.changeLog || []).length ? '' : '(none)\n',
