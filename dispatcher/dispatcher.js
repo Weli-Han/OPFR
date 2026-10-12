@@ -431,6 +431,10 @@ function completeTask(t, r) {
   const wt = t.wt;
   git(['add', '-A'], wt);
   if (!git(['diff', '--cached', '--quiet'], wt).ok) git(['commit', '-q', '-m', `${t.id}: ${t.title}`.slice(0, 120), '--no-verify'], wt);
+  // Bring in what other tasks merged meanwhile, so the check runs on exactly what main will become.
+  // Two parallel fixes can each pass alone and break main together. On conflict, abort here;
+  // the merge into main below then conflicts too and goes to an integrate task.
+  if (!t.wtOf && !git(['merge', '-q', '--no-edit', M.mainBranch], wt).ok) git(['merge', '--abort'], wt);
   if (M.verifyCmd && ['build', 'fix', 'integrate'].includes(t.kind)) {
     const v = spawnSync(M.verifyCmd, { cwd: wt, shell: true, encoding: 'utf8', timeout: 15 * 60000, windowsHide: true });
     if (v.status !== 0) return fail(t, `check command failed: ${tail((v.stdout || '') + (v.stderr || ''), 1500)}`);
