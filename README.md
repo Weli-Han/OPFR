@@ -49,7 +49,7 @@ it has work to do.
 |---|---|
 | Conductor (`commands/opfr.md`) | Runs on your session model. Writes SPEC, interviews, sends tasks. Never switches model. |
 | Dispatcher (`dispatcher/dispatcher.js`) | Zero-token Node scheduler. It is the only writer of `.opfr/board.json`. It runs workers, merges, and creates verify/fix/integrate/report tasks. |
-| Runner (`runner/run.ps1`, `run.sh`) | Keeps the PC awake. Restarts the dispatcher if it crashes. Survives when the Claude window closes. |
+| Runner (`runner/run.ps1`, `run.sh`) | Keeps the PC awake. Restarts the dispatcher if it crashes. Survives when the Claude window closes. On Windows it adds a login entry, so an unfinished run resumes after a reboot or sign-out. |
 | Workers | Headless `claude -p` processes, each in its own git worktree, with a short role prompt (`roles/`). |
 | Hooks (`hooks/`) | guard (deny rules), stop-gate (no exit without a result file), security patterns, session context, headroom. |
 | Library (`library/`) | 97 skills and 40 agents from known plugins. They are not registered, so they cost no tokens until a task reads one. `library/CATALOG.md` is the index. |
@@ -116,11 +116,20 @@ Escalation ladder: haiku high, haiku xhigh, sonnet medium, sonnet high, sonnet x
 
 Stop: `node dispatcher/opfr.js stop <project>`. Resume: `/opfr-resume` or `opfr.js start <project>`.
 
+Power loss, reboot, sign-out: work stops, progress stays. Merged tasks are kept; tasks that were
+running start again. On Windows the runner puts `opfr-resume.cmd` in your Startup folder (per user,
+no admin). At the next login it runs `opfr.js resume-all`, which restarts every unfinished project
+that you did not stop. The entry removes itself when all projects are done or stopped.
+Turn it off: `node dispatcher/opfr.js autostart off`. On macOS/Linux add
+`@reboot node <plugin>/dispatcher/opfr.js resume-all` to your crontab.
+Sleep is blocked while a run is active; a closed laptop lid or a shutdown still stops it.
+
 ## Tests
 
 ```
 node test/e2e.js          full lifecycle with a mock CLI (no tokens)
 node test/guard-test.js   guard and security-pattern rules
+node test/autostart-test.js  resume after reboot (temp dirs only)
 ```
 
 ## License

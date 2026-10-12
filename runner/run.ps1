@@ -15,6 +15,9 @@ Log "runner start pid $PID, keep-awake on"
 
 $node = (Get-Command node -ErrorAction SilentlyContinue).Source
 if (-not $node) { Log 'node not found on PATH'; exit 1 }
+$cli = Join-Path (Split-Path $PSScriptRoot -Parent) 'dispatcher\opfr.js'
+# Login entry so an unfinished project resumes after a reboot or sign-out.
+Log (& $node $cli autostart auto 2>&1)
 
 $restarts = 0
 while (-not (Test-Path (Join-Path $opfr 'DONE')) -and -not (Test-Path (Join-Path $opfr 'STOP'))) {
@@ -27,5 +30,6 @@ while (-not (Test-Path (Join-Path $opfr 'DONE')) -and -not (Test-Path (Join-Path
   Start-Sleep -Seconds 15
 }
 
+Log (& $node $cli autostart auto 2>&1)
 [void][OPFR.Power]::SetThreadExecutionState([uint32]2147483648)
 Log 'runner end, keep-awake off'
