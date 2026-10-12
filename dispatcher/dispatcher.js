@@ -303,7 +303,9 @@ function notify(title, body) {
   ev('notify', { title, body });
   if (process.env.OPFR_NOTIFY === '0' || M.notify === false) return;
   const xml = s => s.replace(/[<>&"']/g, ch => `&#${ch.charCodeAt(0)};`);
-  const run = (cmd, args) => { try { spawn(cmd, args, { detached: true, stdio: 'ignore', windowsHide: true }).on('error', () => {}).unref(); } catch {} };
+  // Synchronous on purpose: the dispatcher exits right after, and a detached
+  // powershell.exe (DETACHED_PROCESS, no console) exits 0 without running the script.
+  const run = (cmd, args) => { try { spawnSync(cmd, args, { stdio: 'ignore', windowsHide: true, timeout: 20000 }); } catch {} };
   if (process.platform === 'win32') {
     const report = 'file:///' + path.join(PROJECT, 'REPORT.md').replace(/\\/g, '/');
     const toast = `<toast activationType="protocol" launch="${xml(encodeURI(report))}"><visual><binding template="ToastGeneric"><text>${xml(title)}</text><text>${xml(body)}</text></binding></visual></toast>`;
