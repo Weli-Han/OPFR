@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="OPFR">
+  <title>OPFR</title>
+  <rect x="8" y="8" width="496" height="496" rx="96" fill="#ffffff" stroke="#e4e4e7" stroke-width="4"/>
+  <!-- cross -->
+  <g stroke="#f97316" stroke-width="8" stroke-linecap="round">
+    <path d="M256 56 V456"/>
+    <path d="M56 256 H456"/>
+  </g>
+  <!-- letters: one stroke weight, centered in each quadrant -->
+  <g fill="none" stroke="#18181b" stroke-width="34" stroke-linecap="round" stroke-linejoin="round">
+    <ellipse cx="156" cy="156" rx="44" ry="62"/>
+    <path d="M320 218 V94 H360 A34 34 0 0 1 360 162 H320"/>
+    <path d="M130 418 V294 H182 M130 352 H172"/>
+    <path d="M320 418 V294 H360 A34 34 0 0 1 360 362 H320 M352 362 L392 418"/>
+  </g>
+</svg>

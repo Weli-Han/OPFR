@@ -1,6 +1,6 @@
 {
   "name": "opfr",
-  "owner": { "name": "velih" },
+  "owner": { "name": "Weli-Han", "url": "https://github.com/Weli-Han" },
   "metadata": { "description": "OPFR: One Prompt, Full Result for Claude Code." },
   "plugins": [
     {

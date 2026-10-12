@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/logo.svg" alt="OPFR logo" width="160"></p>
+
 # OPFR: One Prompt, Full Result
 
 A Claude Code plugin for long autonomous work. You write one prompt. The conductor asks the
@@ -19,7 +21,7 @@ It works for any task type: code, data/ML, infrastructure, automation, research,
 ## Install
 
 ```
-/plugin marketplace add <owner>/opfr
+/plugin marketplace add Weli-Han/opfr
 /plugin install opfr@opfr
 ```
 
