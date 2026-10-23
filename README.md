@@ -65,8 +65,9 @@ it has work to do.
 | Hooks (`hooks/`) | guard (deny rules), stop-gate (no exit without a result file), security patterns, session context, headroom. |
 | Library (`library/`) | 97 skills and 40 agents from known plugins. They are not registered, so they cost no tokens until a task reads one. `library/CATALOG.md` is the index. |
 
-Lifecycle per part: build tasks, then verify round 1, then fixes for each bug, then verify round 2
-(at most 2 rounds). After all parts: security review, final end-to-end verification, and the report.
+Lifecycle per part: build tasks, then verify round 1, then one fix task for the bugs of that round, then
+verify round 2 (at most 2 rounds). With a check command that passes on main, the part skips its LLM verify
+rounds. After all parts: security review, final end-to-end verification, and the report.
 A failed task retries once on the next model rung. After that it is `UNRESOLVED` and listed in the report.
 Fix tasks write a failing regression test first; change tasks update the tests to the new behavior first.
 When the run finishes you get a desktop notification (Windows toast, click opens `REPORT.md`; macOS and
@@ -89,6 +90,12 @@ Escalation ladder: haiku high, haiku xhigh, sonnet medium, sonnet high, sonnet x
 
 - Each task gets a fresh session with a stable role prompt, so the prompt cache is reused.
 - `--setting-sources project,local` keeps your user plugins out of workers.
+- Workers get only the OPFR hooks (`--settings`), not the plugin's skills and commands, and only six
+  built-in tools (Read, Edit, Write, Bash, Grep, Glob). A worker turn starts at about 8k cached tokens.
+- One fix task per verify round, not one per bug.
+- A part whose check command passes on main gets no LLM verify round; the final verification covers it.
+- Tasks with overlapping areas, or without an area in the same part, never run side by side, so merge
+  conflicts and their integrate tasks are rare.
 - MCP servers are passed per task only (`--strict-mcp-config`).
 - The library stays unregistered. Each task reads at most 3 entries.
 - Workers read grep-first, keep test output quiet, and write short result files.

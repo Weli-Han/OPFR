@@ -17,9 +17,16 @@ const BOARD = path.join(O, 'board.json');
 const TICK_MS = 2000;
 const TERMINAL = new Set(['done', 'unresolved', 'cancelled', 'skipped']);
 const KIND_ORDER = { fix: 0, integrate: 1, verify: 2, security: 3, build: 4, research: 4, report: 5 };
+const TIERS = ['simple', 'normal', 'complex', 'critical'];
+const FIX_BATCH = 5; // bugs per fix task
 
 if (!fs.existsSync(BOARD)) { console.error('No board at ' + BOARD); process.exit(1); }
 for (const d of ['inbox', 'inbox/done', 'results', 'briefs', 'logs', 'scratch', 'spec']) fs.mkdirSync(path.join(O, d), { recursive: true });
+// Workers get the plugin's hooks with absolute paths instead of the whole plugin:
+// no skills or commands in their context, a smaller start for every worker turn.
+const WORKER_SETTINGS = path.join(O, 'worker-settings.json');
+fs.writeFileSync(WORKER_SETTINGS, JSON.stringify({ hooks: JSON.parse(fs.readFileSync(path.join(PLUGIN, 'hooks', 'hooks.json'), 'utf8')
+  .replaceAll('${CLAUDE_PLUGIN_ROOT}', PLUGIN.replace(/\\/g, '/'))).hooks }, null, 1));
 
 // ---- single instance ---------------------------------------------------------
 const PID = path.join(O, 'dispatcher.pid');
@@ -102,7 +109,7 @@ function addTask(spec, part) {
     id, part: spec.part || part || '_', title: spec.title || id, kind: spec.kind || 'build', role: spec.role || roleFor(spec.kind),
     tier: spec.tier || 'normal', small: !!spec.small, risky: !!spec.risky, model: spec.model, effort: spec.effort,
     deps: spec.deps || [], area: [].concat(spec.area || []), skills: spec.skills || [], mcp: spec.mcp || [],
-    verify: spec.verify !== false, status: 'todo', attempts: 0, created: iso(), wtOf: spec.wtOf, bug: spec.bug,
+    verify: spec.verify !== false, status: 'todo', attempts: 0, created: iso(), wtOf: spec.wtOf, bug: spec.bug, bugs: spec.bugs,
     answers: [], noEffort: false, epoch: (B.parts[spec.part || part] || {}).epoch || 0, change: spec.change,
   };
   t.rung = t.model && !route.LADDER.some(([m]) => m === t.model) ? null : route.startRung(t);
@@ -252,19 +259,31 @@ function advanceParts() {
     const fixesSince = lastVerify ? cur.filter(t => t.kind === 'fix' && t.fromVerify === lastVerify.id) : [];
     const needRound = !lastVerify ? ep > 0 || builds.some(t => t.status === 'done') : fixesSince.some(t => t.status === 'done');
     if (needRound && P.round < M.verifyRounds) {
+      // Each task already passed the check command alone; run it once more on main. Green: no LLM
+      // round, FINAL verifies the whole result. Red: the round starts from the failing output.
+      let check = '';
+      if (M.verifyCmd && M.partVerify !== 'always') {
+        const v = spawnSync(M.verifyCmd, { cwd: PROJECT, shell: true, encoding: 'utf8', timeout: 15 * 60000, windowsHide: true });
+        if (v.status === 0) {
+          P.state = 'done'; ev('verify-skip', { part: name, round: P.round + 1 }); ev('part-done', { part: name });
+          append('DECISIONS.md', `- [verify ${name}] Check command passed on ${M.mainBranch}; LLM verify of this part left to FINAL.`);
+          touch(); continue;
+        }
+        check = tail((v.stdout || '') + (v.stderr || ''), 1500);
+      }
       P.round++; P.state = 'verifying';
-      addTask({ id: freshId(`V${P.round}-${name}`), kind: 'verify', tier: 'normal', title: `Verify part ${name} (round ${P.round})`, brief: verifyBrief(name, P), mcp: M.verifyMcp || [] }, name);
+      addTask({ id: freshId(`V${P.round}-${name}`), kind: 'verify', tier: 'normal', title: `Verify part ${name} (round ${P.round})`, brief: verifyBrief(name, P, check), mcp: M.verifyMcp || [] }, name);
     } else { P.state = 'done'; ev('part-done', { part: name }); }
     touch();
   }
 }
 
-function verifyBrief(name, P) {
+function verifyBrief(name, P, check) {
   const done = partTasks(name).filter(t => t.status === 'done' && t.kind !== 'verify').map(t => `- ${t.id} ${t.title}: ${t.summary || ''}`).join('\n');
   const spec = path.join(O, 'spec', name + '.md');
   const changes = P.changes ? `The plan for this part changed mid-run (${P.changes.join('; ')}). Check the changed behavior and that nothing else broke.\n` : '';
   return `Verify part ${name} "${P.title}" against its spec ${fs.existsSync(spec) ? spec : path.join(O, 'SPEC.md')}.\n` +
-    `Completed work:\n${done}\n${changes}Run the project checks${M.verifyCmd ? ` (\`${M.verifyCmd}\`)` : ''}, exercise the real behavior, add missing tests.\n` +
+    `Completed work:\n${done}\n${changes}${check ? `The check command fails on ${M.mainBranch}:\n${check}\n` : ''}Run the project checks${M.verifyCmd ? ` (\`${M.verifyCmd}\`)` : ''}, exercise the real behavior, add missing tests.\n` +
     `Report each defect in result "bugs": [{"title","detail","area","tier":"simple|normal|complex","repro"}]. Empty list if clean.`;
 }
 
@@ -357,12 +376,16 @@ function promote() {
   }
 }
 
-// Area locks: tasks sharing an area never run together; '*' means exclusive.
+// Area locks: tasks with overlapping areas never run together; '*' means exclusive. An area is a
+// name or a path, and "src" also covers "src/api". A task without an area locks its whole part:
+// parallel tasks on the same files end in a merge conflict and a paid integrate task.
+const areasOf = t => t.area.length ? t.area.map(a => String(a).replace(/\\/g, '/').replace(/\/+$/, '')) : ['part:' + t.part];
+const overlap = (a, b) => a === b || a.startsWith(b + '/') || b.startsWith(a + '/');
 function areaFree(t) {
-  const run = running(), busy = run.flatMap(r => r.area);
+  const run = running(), busy = run.flatMap(areasOf), mine = areasOf(t);
   if (busy.includes('*')) return false;
-  if (t.area.includes('*')) return run.length === 0;
-  return !t.area.some(a => busy.includes(a));
+  if (mine.includes('*')) return run.length === 0;
+  return !mine.some(a => busy.some(b => overlap(a, b)));
 }
 
 function schedule() {
@@ -426,11 +449,17 @@ function taskPrompt(t, wt) {
   if (t.change) lines.push(`Plan change ${t.change}: ${M.mainBranch} already holds earlier work on this part. Edit that code to match the updated spec; keep what still fits, do not rebuild from scratch. Tests first: when the project has tests, change or add them to the new behavior and see them fail, then change the code until they pass.`);
   if (t.skills.length) lines.push('Read only these library skills first: ' + t.skills.map(s => path.join(PLUGIN, 'library', 'skills', s, 'SKILL.md')).join(', '));
   if (t.bug) lines.push('Bug: ' + JSON.stringify(t.bug));
+  if (t.bugs) lines.push('Bugs to fix (all of them):', ...t.bugs.map((b, i) => `${i + 1}. ${JSON.stringify(b)}`));
   if (t.depNote) lines.push(t.depNote);
   if (t.lastError) lines.push(`Previous attempt ${t.attempts} failed (model ${t.lastModel}). Cause: ${tail(t.lastError, 1200)}`);
   for (const a of t.answers) lines.push(`Answer to "${a.q}": ${a.a}`);
   lines.push(`Finish by writing ${res} as JSON: {"status":"done|failed|blocked|question","summary":"<=3 lines","files":[],"decisions":[],"bugs":[],"question":{"text":"","options":[],"recommended":""}}`);
   return lines.join('\n');
+}
+
+// Built-in tools a worker sees; each schema costs tokens on every turn. MCP tools come on top.
+function workerTools(t) {
+  return M.workerTools || ['Read', 'Edit', 'Write', 'Bash', 'Grep', 'Glob', ...(t.kind === 'research' ? ['WebFetch', 'WebSearch'] : [])];
 }
 
 function launch(t) {
@@ -445,8 +474,8 @@ function launch(t) {
   fs.mkdirSync(path.join(O, 'scratch', t.id), { recursive: true });
   const args = ['-p', taskPrompt(t, w.wt), '--model', model, '--output-format', 'json',
     '--permission-mode', M.permissionMode, '--append-system-prompt', rolePrompt(t.role),
-    '--plugin-dir', PLUGIN, '--setting-sources', 'project,local',
-    '--exclude-dynamic-system-prompt-sections', '--strict-mcp-config'];
+    '--settings', WORKER_SETTINGS, '--tools', workerTools(t).join(','), '--disable-slash-commands',
+    '--setting-sources', 'project,local', '--exclude-dynamic-system-prompt-sections', '--strict-mcp-config'];
   if (effort && !t.noEffort) args.push('--effort', effort);
   if (M.permissionMode !== 'bypassPermissions') args.push('--permission-prompts', 'none');
   for (const m of t.mcp) { const f = path.join(PLUGIN, 'mcp', m + '.json'); if (fs.existsSync(f)) args.push('--mcp-config', f); }
@@ -548,15 +577,23 @@ function completeTask(t, r) {
   t.status = 'done'; ev('done', { id: t.id, kind: t.kind }); afterDone(t, r); touch();
 }
 
+// One fix task per verify round (FIX_BATCH bugs at most): every worker start costs its base
+// context again, and bugs found in one part usually share files.
 function afterDone(t, r) {
-  if (['verify', 'security'].includes(t.kind)) {
-    (r.bugs || []).forEach((b, i) => {
-      append('BUGS.md', `- [found by ${t.id}] ${b.title}: ${String(b.detail || '').slice(0, 300)}`);
-      addTask({ id: `F-${t.id}-${i + 1}`, kind: 'fix', tier: b.tier || 'normal', risky: t.kind === 'security', area: b.area ? [b.area] : [], bug: b, title: `Fix: ${b.title}`,
-        brief: `Fix this defect found by ${t.id}. Reproduce first (write a failing test when practical), fix the root cause, run checks.\n${JSON.stringify(b, null, 1)}` }, t.part)
-        .fromVerify = t.id;
-      ev('bug', { id: t.id, title: b.title });
-    });
+  if (!['verify', 'security'].includes(t.kind)) return;
+  const bugs = (r.bugs || []).filter(b => b && b.title);
+  for (const b of bugs) {
+    append('BUGS.md', `- [found by ${t.id}] ${b.title}: ${String(b.detail || '').slice(0, 300)}`);
+    ev('bug', { id: t.id, title: b.title });
+  }
+  for (let i = 0; i < bugs.length; i += FIX_BATCH) {
+    const group = bugs.slice(i, i + FIX_BATCH), n = i / FIX_BATCH;
+    const tier = TIERS[Math.max(...group.map(b => TIERS.includes(b.tier) ? TIERS.indexOf(b.tier) : 1))];
+    const area = group.every(b => b.area) ? [...new Set(group.map(b => b.area))] : [];
+    addTask({ id: n ? `F-${t.id}-${n + 1}` : `F-${t.id}`, kind: 'fix', tier, risky: t.kind === 'security', area, bugs: group,
+      title: group.length > 1 ? `Fix ${group.length} bugs: ${group.map(b => b.title).join('; ')}`.slice(0, 160) : `Fix: ${group[0].title}`,
+      brief: `Fix the ${group.length} defect(s) found by ${t.id}, listed in the task prompt. For each: reproduce first (write a failing test when practical), fix the root cause. Then run checks.` }, t.part)
+      .fromVerify = t.id;
   }
 }
 

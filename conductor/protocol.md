@@ -11,7 +11,7 @@
 - `{"op":"part","part":"A","title":"Auth","final":true,"tasks":[<task>...]}`: submit tasks of a part. `final:true` = no more build tasks for this part; then the part gets verify rounds automatically.
 - `{"op":"draft","part":"B","title":"...","tasks":[...]}`: fallback tasks, used only if intake closes before part B is final.
 - `{"op":"task", ...<task>}`: one extra task.
-- `{"op":"meta","set":{...}}`: verifyCmd, deadline (ISO), maxParallel (default 3), taskTimeoutMin (60), verifyRounds (2), security (true), critical (false: true makes the security review use opus high), verifyMcp (["playwright"] for web UIs), permissionMode ("bypassPermissions" default; "auto" possible).
+- `{"op":"meta","set":{...}}`: verifyCmd, deadline (ISO), maxParallel (default 3), taskTimeoutMin (60), verifyRounds (2), security (true), critical (false: true makes the security review use opus high), verifyMcp (["playwright"] for web UIs), permissionMode ("bypassPermissions" default; "auto" possible), partVerify ("auto" default: with a verifyCmd that passes on main, a part gets no LLM verify round and FINAL checks everything; "always" = LLM verify for every part), workerTools (built-in tools of workers; default Read, Edit, Write, Bash, Grep, Glob, plus WebFetch, WebSearch for research).
 - `{"op":"change","parts":["B"],"note":"...","tasks":[<task>...]}`: change the plan of submitted parts (see Plan changes). `opfr change P '<json>'` checks and queues it.
 - `{"op":"answer","qid":"...","text":"..."}`, `{"op":"cancel","id":"..."}` (not for running tasks), `{"op":"close"}`.
 
@@ -29,7 +29,7 @@
   - critical: core architecture, money, auth core, irreversible data. opus high.
   Failure escalates one rung: haiku high, haiku xhigh, sonnet medium, sonnet high, sonnet xhigh, opus high. Max 2 attempts, then UNRESOLVED.
 - deps: task ids that must finish first. Keep chains short; prefer parallel tasks.
-- area: lock names. Two running tasks never share an area. Give tasks that touch the same files the same area. "*" = runs alone.
+- area: lock names or paths. Two running tasks never share an area; a path also covers what is under it ("src" locks "src/api"). Give tasks that touch the same files the same area. A task without area locks its whole part, so set areas wherever tasks of one part can run in parallel. "*" = runs alone.
 - skills: names from the library catalog (`${CLAUDE_PLUGIN_ROOT}/library/CATALOG.md`); max 3 per task; only when clearly useful.
 - mcp: "playwright" (browser) or "context7" (library docs). Only when the task needs it.
 - brief: everything the worker needs. Workers never see the chat. 5–25 lines. Include acceptance checks.
@@ -50,5 +50,5 @@ Each change is logged in DECISIONS.md, STATUS.md (`changes:`) and summary.md ("P
 ## Splitting rules
 - One task = one worker session = one coherent change (about 1–6 files). Bigger: split.
 - Put a scaffold task first (project skeleton, tooling, check command) when the project is new; other tasks depend on it.
-- Tests are part of each build task. Separate verify rounds come automatically.
+- Tests are part of each build task. Separate verify rounds come automatically. Set a verifyCmd that runs the tests: when it passes, part verify rounds are skipped and tokens saved.
 - Non-code work (documents, research, data) uses the same model: parts, tasks, briefs, acceptance checks.

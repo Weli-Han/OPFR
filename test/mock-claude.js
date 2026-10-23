@@ -16,6 +16,14 @@ const calls = fs.readFileSync(log, 'utf8').split('\n').filter(l => l.startsWith(
 const git = a => spawnSync('git', a, { cwd: wt, encoding: 'utf8' });
 const write = (f, s) => fs.writeFileSync(path.join(wt, f), s);
 const result = r => fs.writeFileSync(res, JSON.stringify(r));
+// The worker command line, minus prompts, for the light-start check.
+if (id === 'A1') fs.writeFileSync(path.join(proj, '.opfr', 'mock-args.json'), JSON.stringify(args.filter((a, i) => !['-p', '--append-system-prompt'].includes(args[i - 1]))));
+// B2 and RL have no area: they lock part B and must never run side by side.
+if (id === 'B2' || id === 'RL') {
+  const lock = path.join(proj, '.opfr', 'mock-lock-B');
+  if (fs.existsSync(lock)) fs.appendFileSync(log, `OVERLAP ${id}\n`);
+  fs.writeFileSync(lock, id); spawnSync(process.execPath, ['-e', 'setTimeout(()=>{},1500)']); fs.unlinkSync(lock);
+}
 // OPFR_MOCK_DELAY_MS slows every worker, for watching the office view live.
 if (process.env.OPFR_MOCK_DELAY_MS) spawnSync(process.execPath, ['-e', `setTimeout(()=>{},${Number(process.env.OPFR_MOCK_DELAY_MS)})`]);
 const out = () => process.stdout.write(JSON.stringify({ type: 'result', is_error: false, result: 'ok', num_turns: 3, duration_ms: 1000, total_cost_usd: 0.01,
@@ -51,7 +59,12 @@ else if (id.startsWith('I-')) {
   git(['add', '-A']); git(['commit', '-q', '--no-edit']);
   result({ status: 'done', summary: 'merged' });
 }
-else if (id === 'V1-A') { write('test-a.txt', 'test\n'); result({ status: 'done', summary: '1 bug', bugs: [{ title: 'a1 missing newline', detail: 'x', area: 'a', tier: 'simple' }] }); }
+else if (id === 'V1-A') { write('test-a.txt', 'test\n'); result({ status: 'done', summary: '2 bugs', bugs: [{ title: 'a1 missing newline', detail: 'x', area: 'a', tier: 'simple' }, { title: 'a2 typo', detail: 'y', area: 's1', tier: 'normal' }] }); }
+else if (id === 'F-V1-A') {
+  // Both bugs of the round go to one fix task.
+  if (!/a1 missing newline/.test(prompt) || !/a2 typo/.test(prompt)) result({ status: 'failed', summary: 'bug list incomplete' });
+  else { write('fix-' + id + '.txt', 'fixed\n'); result({ status: 'done', summary: 'fixed 2' }); }
+}
 else if (/^(V\d|FINAL|SEC)/.test(id)) result({ status: 'done', summary: 'clean', bugs: [] });
 else if (id.startsWith('F-')) { write('fix-' + id + '.txt', 'fixed\n'); result({ status: 'done', summary: 'fixed' }); }
 else if (id.startsWith('REPORT')) { write('REPORT.md', '# Report\n' + fs.readFileSync(path.join(proj, '.opfr', 'summary.md'), 'utf8').slice(0, 300)); result({ status: 'done', summary: 'report' }); }

@@ -65,7 +65,13 @@ async function demo() {
     ['C2 unresolved', st.C2 === 'unresolved' && /UNRESOLVED C2/.test(rd(P, 'BUGS.md'))],
     ['C2 escalated sonnet high to xhigh', /C2 sonnet high[\s\S]*C2 sonnet xhigh/.test(calls)],
     ['draft D promoted', st.D1 === 'done' && /Part D built from draft/.test(rd(P, 'DECISIONS.md'))],
-    ['verify bug fixed, round 2', st['F-V1-A-1'] === 'done' && st['V2-A'] === 'done' && has(P, 'fix-F-V1-A-1.txt')],
+    ['verify bugs fixed in one task, round 2', st['F-V1-A'] === 'done' && !st['F-V1-A-2'] && b.tasks['F-V1-A'].tier === 'normal' && st['V2-A'] === 'done' && has(P, 'fix-F-V1-A.txt')],
+    ['part without areas runs serially', /^B2 /m.test(calls) && /^RL /m.test(calls) && !/OVERLAP/.test(calls)],
+    ['worker starts light', (a => { try { a = JSON.parse(a); } catch { return false; }
+      const s = a[a.indexOf('--settings') + 1] || '';
+      return !a.includes('--plugin-dir') && a.includes('--disable-slash-commands') && a[a.indexOf('--tools') + 1] === 'Read,Edit,Write,Bash,Grep,Glob' &&
+        fs.existsSync(s) && fs.readFileSync(s, 'utf8').includes(path.resolve(__dirname, '..', 'hooks', 'guard.js').replace(/\\/g, '/'));
+    })(rd(P, 'mock-args.json'))],
     ['security + final', st.SEC === 'done' && st.FINAL === 'done'],
     ['report on conductor model', st.REPORT === 'done' && /REPORT claude-opus-5-5 high/.test(calls) && has(P, 'REPORT.md')],
     ['decisions logged', /used txt/.test(rd(P, 'DECISIONS.md'))],
@@ -120,9 +126,25 @@ async function change() {
   ];
 }
 
-Promise.all([demo(), change().catch(e => [['change scenario: ' + e.message, false]])]).then(([a, c]) => {
+// ---- check: a passing check command replaces the per-part LLM verify ---------------
+async function check() {
+  const P = opfr('init', 'check', '--model', 'claude-opus-5-5', '--root', root).trim();
+  const op = o => opfr('op', P, JSON.stringify(o));
+  op({ op: 'meta', set: { maxParallel: 2, intakeIdleMin: 0, taskTimeoutMin: 2, verifyCmd: 'node -e "process.exit(0)"' } });
+  op([{ op: 'part', part: 'K', title: 'Part K', final: true, tasks: [t('K1'), t('K2', { area: ['k'] })] }, { op: 'close' }]);
+  await exited(dispatch(P));
+  const st = status(P);
+  console.log('check ' + JSON.stringify(st));
+  return [
+    ['check: part verify skipped when the check passes', st.K1 === 'done' && st.K2 === 'done' && !Object.keys(st).some(id => /^V\d/.test(id)) &&
+      /"type":"verify-skip","part":"K"/.test(rd(P, 'events.jsonl')) && /LLM verify of this part left to FINAL/.test(rd(P, 'DECISIONS.md'))],
+    ['check: final verify still runs', st.FINAL === 'done' && st.REPORT === 'done' && board(P).meta.stage === 'finished'],
+  ];
+}
+
+Promise.all([demo(), change().catch(e => [['change scenario: ' + e.message, false]]), check().catch(e => [['check scenario: ' + e.message, false]])]).then(([a, c, k]) => {
   let bad = 0;
-  for (const [n, ok] of [...a, ...c]) { console.log((ok ? 'PASS ' : 'FAIL ') + n); if (!ok) bad++; }
+  for (const [n, ok] of [...a, ...c, ...k]) { console.log((ok ? 'PASS ' : 'FAIL ') + n); if (!ok) bad++; }
   console.log('root: ' + root + ' (' + Math.round((Date.now() - started) / 1000) + 's)');
   const hold = process.env.OPFR_E2E_OFFICE ? Number(process.env.OPFR_E2E_OFFICE_HOLD_MS || 0) : 0;
   setTimeout(() => process.exit(bad ? 1 : 0), hold);
